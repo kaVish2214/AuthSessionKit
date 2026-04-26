@@ -15,8 +15,9 @@ extension AuthSessionHandle {
 
     /// Validates the current session locally and triggers biometric authentication if needed.
     ///
-    /// Called on `didBecomeActive`. Guards against running before the initial fetch,
-    /// during an active biometric prompt, or when manual authentication is required.
+    /// Called from the initial `.sessionFetched` event and on subsequent `didBecomeActive`
+    /// notifications. Guarded by ``isSessionReadyToValidate`` to prevent running before
+    /// the first fetch completes, and skipped during an active biometric prompt.
     func validateLocalSessionOrAuthenticateIfNeeded() {
         // Wait until the first session fetch has completed to avoid a false `.signedOut`.
         guard isSessionReadyToValidate else {

@@ -36,6 +36,8 @@ public enum AuthSessionError: Error, Sendable {
     /// - Parameter error: The underlying error encountered during sign-out.
     case signingOutFailure(error: Error)
     
+    /// The initial session fetch or a subsequent refresh failed.
+    /// - Parameter error: The underlying error from the session provider.
     case sessionFetchFailed(error: Error)
 }
 

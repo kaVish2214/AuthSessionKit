@@ -56,9 +56,20 @@ public final class AuthSessionHandle<AuthSessionProvider>: NSObject, AuthSession
     /// The biometric authentication manager, or `nil` if biometrics are unavailable.
     private(set) var biometricAuthentication: (any BiometricAuthentication)?
 
-    /// Guards validation from running before the first session fetch completes,
-    /// preventing a premature `.signedOut` when `didBecomeActive` fires at launch.
+    /// Guards ``validateLocalSessionOrAuthenticateIfNeeded()`` from running before
+    /// the first session fetch completes, preventing a premature `.signedOut` when
+    /// `didBecomeActive` fires at launch.
+    ///
+    /// Set to `true` by ``enableSessionForValidation()`` once the provider delivers
+    /// a `.sessionFetched` or `.sessionFetchFailed` event.
     private(set) var isSessionReadyToValidate: Bool = false
+
+    /// Gates the `didBecomeActive` notification handler so it skips validation on
+    /// the first activation — allowing the provider's initial fetch to run first.
+    ///
+    /// On the first `didBecomeActive`, this flag is set without triggering validation.
+    /// Subsequent foreground events proceed to ``validateLocalSessionOrAuthenticateIfNeeded()``.
+    private(set) var allowsSessionValidationFromNotifications: Bool = false
 
     /// The observer token returned by `NotificationCenter`, stored for removal in `deinit`.
     var notificationObserver: (any NSObjectProtocol)?
@@ -109,9 +120,22 @@ public final class AuthSessionHandle<AuthSessionProvider>: NSObject, AuthSession
     // MARK: - Session Readiness
 
     /// Marks the session as ready for local validation after the initial fetch completes.
+    ///
+    /// Called from the event listener when the provider delivers `.sessionFetched` or
+    /// `.sessionFetchFailed`, unlocking ``validateLocalSessionOrAuthenticateIfNeeded()``.
     func enableSessionForValidation() {
         guard !isSessionReadyToValidate else { return }
         isSessionReadyToValidate = true
+    }
+
+    /// Marks the notification handler as ready to trigger validation.
+    ///
+    /// Called once during the first `didBecomeActive` notification. Until this flag
+    /// is set, notification callbacks skip validation to avoid racing with the
+    /// provider's initial fetch.
+    func enableSessionValidationFromNotification() {
+        guard !allowsSessionValidationFromNotifications else { return }
+        allowsSessionValidationFromNotifications = true
     }
 
     // MARK: - Status

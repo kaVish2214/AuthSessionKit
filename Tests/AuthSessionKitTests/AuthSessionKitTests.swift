@@ -237,6 +237,57 @@ struct SessionReadinessTests {
 }
 
 
+// MARK: - Notification Validation Readiness
+
+@Suite("Notification Validation Readiness")
+struct NotificationValidationReadinessTests {
+
+    @Test func notificationValidationStartsFalse() {
+        let (handle, _) = makeHandle()
+        #expect(handle.allowsSessionValidationFromNotifications == false)
+    }
+
+    @Test func enableSetsFlag() {
+        let (handle, _) = makeHandle()
+        handle.enableSessionValidationFromNotification()
+        #expect(handle.allowsSessionValidationFromNotifications == true)
+    }
+
+    @Test func enableIsIdempotent() {
+        let (handle, _) = makeHandle()
+        handle.enableSessionValidationFromNotification()
+        handle.enableSessionValidationFromNotification()
+        #expect(handle.allowsSessionValidationFromNotifications == true)
+    }
+
+    @Test func sessionFetchDoesNotSetNotificationFlag() {
+        let (handle, _) = makeHandle()
+        let listener = handle.listenEvent()
+        listener(.sessionFetched(isInitialFetch: true))
+        #expect(handle.allowsSessionValidationFromNotifications == false)
+    }
+
+    @Test func sessionFetchFailedDoesNotSetNotificationFlag() {
+        let (handle, _) = makeHandle()
+        let listener = handle.listenEvent()
+        listener(.sessionFetchFailed(NSError(domain: "test", code: 1)))
+        #expect(handle.allowsSessionValidationFromNotifications == false)
+    }
+
+    @Test func twoFlagsAreIndependent() {
+        let (handle, _) = makeHandle()
+        handle.enableSessionForValidation()
+        #expect(handle.isSessionReadyToValidate == true)
+        #expect(handle.allowsSessionValidationFromNotifications == false)
+
+        let (handle2, _) = makeHandle()
+        handle2.enableSessionValidationFromNotification()
+        #expect(handle2.allowsSessionValidationFromNotifications == true)
+        #expect(handle2.isSessionReadyToValidate == false)
+    }
+}
+
+
 // MARK: - Event Handling
 
 @Suite("Event Handling")
