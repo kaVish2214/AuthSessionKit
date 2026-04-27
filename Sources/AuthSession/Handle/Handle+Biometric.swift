@@ -17,8 +17,9 @@ extension AuthSessionHandle: SessionBiometricEventProxy {
     /// Handles a biometric authentication failure by consulting the provider's policy.
     ///
     /// If the provider's ``AuthSessionProviderInterface/allowsSessionSigningOutOnBiometricAuthenticationFailure(with:)``
-    /// returns `true`, the user is signed out. Otherwise the session remains active
-    /// at `.signedIn` and the failure is broadcast as an `.unexpectedError` so
+    /// returns `true`, the user is signed out. Otherwise, manual authentication is
+    /// enabled (blocking automatic `didBecomeActive` validation), the session stays
+    /// at `.signedIn`, and the failure is broadcast as an `.unexpectedError` so
     /// delegates can present a retry or fallback UI.
     func biometricAuthenticationFailure(with error: BiometricAuthenticationError) {
         let shouldSignOut: Bool = sessionProvider.allowsSessionSigningOutOnBiometricAuthenticationFailure(with: error)
@@ -29,6 +30,7 @@ extension AuthSessionHandle: SessionBiometricEventProxy {
                sessionEventProxy?.execute(.unexpectedError(.signingOutFailure(error: error)))
             }
         }else {
+            enableManualAuthentication()
             set(sessionStatus: .signedIn)
             sessionEventProxy?.execute(.unexpectedError(.biometricAuthFailure(error: error)))
         }

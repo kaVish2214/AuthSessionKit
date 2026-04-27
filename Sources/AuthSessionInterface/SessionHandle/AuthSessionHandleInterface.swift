@@ -42,6 +42,13 @@ public protocol AuthSessionHandleInterface: DelegateMultiCasting, Sendable where
     /// Creates a new session handle backed by the given session provider.
     /// - Parameter sessionProvider: The provider that manages the underlying authentication session.
     init(sessionProvider: AuthSessionProvider)
+    
+    /// Triggers session validation when manual authentication is required.
+    ///
+    /// Call this from the UI (e.g., a "Re-authenticate" button) after
+    /// ``isManualAuthenticationRequired`` becomes `true`. No-ops if the flag
+    /// is `false`.
+    func requestManualAuthentication()
 }
 
 

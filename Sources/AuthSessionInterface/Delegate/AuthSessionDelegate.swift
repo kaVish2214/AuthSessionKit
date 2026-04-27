@@ -17,51 +17,56 @@ import MultiCastDelegate
 /// callbacks your observer needs.
 public protocol AuthSessionDelegate: MultiCastDelegate {
 
-    /// Called when a session fetch completes successfully.
+    /// Called when a session fetch completes (initial launch or subsequent refresh).
     /// - Parameters:
-    ///   - session: The current session, or `nil` if no session was returned.
-    ///   - isInitialFetch: `true` if this is the first fetch at launch; `false` for subsequent refreshes.
-    func session(_ session: (any AuthSessionInterface)?, sessionFetchDidComplete isInitialFetch: Bool)
+    ///   - sessionHandle: The handle that owns the session.
+    ///   - session: The fetched session, or `nil` if no session exists.
+    ///   - flag: `true` for the first fetch at launch; `false` for refreshes.
+    func authentication(_ sessionHandle: (any AuthSessionHandleInterface)?, didCompleteFetchWith session: (any AuthSessionInterface)?, isInitialFetch flag: Bool)
 
-    /// Called when the session status transitions to a new value.
+    /// Called whenever the session status transitions to a new value.
     /// - Parameters:
-    ///   - session: The current session, or `nil` if the user is signed out.
-    ///   - sessionStatus: The new session status.
-    ///   - oldStatus: The previous session status before the transition.
-    func session(_ session: (any AuthSessionInterface)?, didUpdate sessionStatus: any AuthSessionStatusInterface, where oldStatus: any AuthSessionStatusInterface)
+    ///   - sessionHandle: The handle that owns the session.
+    ///   - sessionStatus: The new status.
+    ///   - oldStatus: The previous status.
+    ///   - session: The current session, or `nil`.
+    func authentication(_ sessionHandle: (any AuthSessionHandleInterface)?, didUpdateStatus sessionStatus: any AuthSessionStatusInterface, from oldStatus: any AuthSessionStatusInterface, for session: (any AuthSessionInterface)?)
 
     /// Called when the user successfully signs in.
     /// - Parameters:
-    ///   - session: The newly established session.
-    ///   - user: The authenticated user, or `nil` if user information is unavailable.
-    func session(_ session: (any AuthSessionInterface)?, didLogin user: (any AuthSessionUserInterface)?)
+    ///   - sessionHandle: The handle that owns the session.
+    ///   - user: The authenticated user, or `nil` if unavailable.
+    ///   - session: The session associated with the sign-in.
+    func authentication(_ sessionHandle: (any AuthSessionHandleInterface)?, didLoginWith user: (any AuthSessionUserInterface)?, for session: (any AuthSessionInterface)?)
 
     /// Called when the user signs out.
     /// - Parameters:
-    ///   - session: The session that was active before sign-out, or `nil`.
-    ///   - error: The error that triggered the sign-out, or `nil` for a voluntary sign-out.
-    func session(_ session: (any AuthSessionInterface)?, didLogoutWith error: Error?)
+    ///   - sessionHandle: The handle that owns the session.
+    ///   - error: The error that triggered the sign-out, or `nil` for voluntary sign-out.
+    func authentication(_ sessionHandle: (any AuthSessionHandleInterface)?, didLogoutWith error: Error?)
 
-    /// Called when the authenticated user's information changes.
+    /// Called when the session's user data changes without a status transition.
     /// - Parameters:
+    ///   - sessionHandle: The handle that owns the session.
+    ///   - user: The updated user, or `nil`.
     ///   - session: The current session.
-    ///   - user: The updated user, or `nil` if user information is unavailable.
-    func session(_ session: (any AuthSessionInterface)?, didUpdate user: (any AuthSessionUserInterface)?)
+    func authentication(_ sessionHandle: (any AuthSessionHandleInterface)?, didUpdate user: (any AuthSessionUserInterface)?, for session: (any AuthSessionInterface)?)
 
-    /// Called when a session operation fails with an error.
+    /// Called when an error occurs during session operations.
     /// - Parameters:
-    ///   - session: The current session, or `nil` if no session is active.
-    ///   - error: The ``AuthSessionError`` describing the failure.
-    func session(_ session: (any AuthSessionInterface)?, didFailWith error: AuthSessionError)
+    ///   - sessionHandle: The handle that owns the session.
+    ///   - error: The session error.
+    ///   - session: The current session, or `nil`.
+    func authentication(_ sessionHandle: (any AuthSessionHandleInterface)?, didFailWith error: AuthSessionError, for session: (any AuthSessionInterface)?)
 }
 
 // MARK: - Optional Defaults
 
 extension AuthSessionDelegate {
 
-    public func session(_ session: (any AuthSessionInterface)?, sessionFetchDidComplete isInitialFetch: Bool) { }
+    public func authentication(_ sessionHandle: (any AuthSessionHandleInterface)?, didCompleteFetchWith session: (any AuthSessionInterface)?, isInitialFetch flag: Bool) { }
 
-    public func session(_ session: (any AuthSessionInterface)?, didFailWith error: AuthSessionError) { }
+    public func authentication(_ sessionHandle: (any AuthSessionHandleInterface)?, didFailWith error: AuthSessionError, for session: (any AuthSessionInterface)?) { }
 
-    public func session(_ session: (any AuthSessionInterface)?, didUpdate user: (any AuthSessionUserInterface)?) { }
+    public func authentication(_ sessionHandle: (any AuthSessionHandleInterface)?, didUpdate user: (any AuthSessionUserInterface)?, for session: (any AuthSessionInterface)?) { }
 }

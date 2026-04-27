@@ -39,7 +39,7 @@ extension AuthSessionHandle {
                 }
                 // Notify delegates that the fetch completed.
                 self.invoke { [weak self] delegate in
-                    delegate?.session(self?.session, sessionFetchDidComplete: isInitialFetch)
+                    delegate?.authentication(self, didCompleteFetchWith: self?.session, isInitialFetch: isInitialFetch)
                 }
 
             case .sessionFetchFailed(let error):
@@ -47,30 +47,30 @@ extension AuthSessionHandle {
                 self.enableSessionForValidation()
                 self.handleSessionStatusOnceFetched()
                 self.invoke { [weak self] delegate in
-                    delegate?.session(self?.session, didFailWith: .sessionFetchFailed(error: error))
+                    delegate?.authentication(self, didFailWith: .sessionFetchFailed(error: error), for: self?.session)
                 }
 
             case .sessionSignIn:
                 self.set(sessionStatus: .signedIn)
                 self.invoke { [weak self] delegate in
-                    delegate?.session(self?.session, didLogin: self?.session?.user)
+                    delegate?.authentication(self, didLoginWith: self?.session?.user, for: self?.session)
                 }
 
             case .sessionSignedOut(let error):
                 self.set(sessionStatus: .signedOut)
                 self.invoke { [weak self] delegate in
-                    delegate?.session(self?.session, didLogoutWith: error)
+                    delegate?.authentication(self, didLogoutWith: error)
                 }
 
             case .sessionUpdated(let session):
                 // Session data changed (e.g. user profile update) — no status transition needed.
                 self.invoke { delegate in
-                    delegate?.session(session, didUpdate: session?.user)
+                    delegate?.authentication(self, didUpdate: self.session?.user, for: self.session)
                 }
 
             case .unexpectedError(let error):
                 self.invoke { [weak self] delegate in
-                    delegate?.session(self?.session, didFailWith: error)
+                    delegate?.authentication(self, didFailWith: error, for: self?.session)
                 }
             }
         }

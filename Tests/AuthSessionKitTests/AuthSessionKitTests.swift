@@ -219,6 +219,59 @@ struct ManualAuthenticationTests {
         handle.disableManualAuthentication()
         #expect(handle.isManualAuthenticationRequired == false)
     }
+
+    @Test func clearedWhenExitingValidatingStatus() {
+        let (handle, _) = makeHandle()
+        handle.enableManualAuthentication()
+        #expect(handle.isManualAuthenticationRequired == true)
+        handle.set(sessionStatus: .validating)
+        handle.set(sessionStatus: .signedIn)
+        #expect(handle.isManualAuthenticationRequired == false)
+    }
+
+    @Test func notClearedWhenEnteringValidating() {
+        let (handle, _) = makeHandle()
+        handle.enableManualAuthentication()
+        handle.set(sessionStatus: .validating)
+        #expect(handle.isManualAuthenticationRequired == true)
+    }
+
+    @Test func notClearedOnNonValidatingTransition() {
+        let (handle, _) = makeHandle()
+        handle.enableManualAuthentication()
+        handle.set(sessionStatus: .signedIn)
+        #expect(handle.isManualAuthenticationRequired == true)
+    }
+
+    @Test func requestManualAuthRunsValidation() {
+        let session = MockSession(expiresIn: 3600)
+        let (handle, _) = makeReadyHandle(session: session, allowsLocalValidation: true, canPerformAuth: false)
+        handle.enableManualAuthentication()
+        handle.set(sessionStatus: .signedIn)
+
+        handle.requestManualAuthentication()
+        #expect(handle.isManualAuthenticationRequired == false)
+    }
+
+    @Test func requestManualAuthNoOpsWhenNotRequired() {
+        let session = MockSession(expiresIn: 3600)
+        let (handle, _) = makeReadyHandle(session: session, allowsLocalValidation: true, canPerformAuth: false)
+        handle.set(sessionStatus: .signedIn)
+        #expect(handle.isManualAuthenticationRequired == false)
+
+        handle.requestManualAuthentication()
+        #expect(handle.sessionStatus == .signedIn)
+    }
+
+    @Test func requestManualAuthTriggersFullValidationFlow() {
+        let session = MockSession(expiresIn: 60)
+        let (handle, provider) = makeReadyHandle(session: session, allowsLocalValidation: true)
+        handle.enableManualAuthentication()
+        handle.set(sessionStatus: .signedIn)
+
+        handle.requestManualAuthentication()
+        #expect(provider.signoutCallCount == 1)
+    }
 }
 
 
@@ -626,6 +679,22 @@ struct BiometricFailureHandlingTests {
         handle.biometricAuthenticationFailure(with: .failed)
         #expect(provider.signoutCallCount == 1)
     }
+
+    @Test func failureEnablesManualAuthWhenProviderDisallowsSignout() {
+        let session = MockSession(expiresIn: 3600)
+        let (handle, provider) = makeHandle(session: session)
+        provider.allowsSignoutOnBiometricFailure = false
+        handle.biometricAuthenticationFailure(with: .failed)
+        #expect(handle.isManualAuthenticationRequired == true)
+    }
+
+    @Test func failureDoesNotEnableManualAuthWhenProviderAllowsSignout() {
+        let session = MockSession(expiresIn: 3600)
+        let (handle, provider) = makeHandle(session: session)
+        provider.allowsSignoutOnBiometricFailure = true
+        handle.biometricAuthenticationFailure(with: .failed)
+        #expect(handle.isManualAuthenticationRequired == false)
+    }
 }
 
 
@@ -846,28 +915,28 @@ final class MockDelegate: NSObject, AuthSessionDelegate, @unchecked Sendable {
     var failureErrors: [AuthSessionError] = []
     var userUpdates = 0
 
-    func session(_ session: (any AuthSessionInterface)?, didUpdate sessionStatus: any AuthSessionStatusInterface, where oldStatus: any AuthSessionStatusInterface) {
+    func authentication(_ sessionHandle: (any AuthSessionHandleInterface)?, didUpdateStatus sessionStatus: any AuthSessionStatusInterface, from oldStatus: any AuthSessionStatusInterface, for session: (any AuthSessionInterface)?) {
         statusChanges.append((new: sessionStatus, old: oldStatus))
     }
 
-    func session(_ session: (any AuthSessionInterface)?, didLogin user: (any AuthSessionUserInterface)?) {
+    func authentication(_ sessionHandle: (any AuthSessionHandleInterface)?, didLoginWith user: (any AuthSessionUserInterface)?, for session: (any AuthSessionInterface)?) {
         loginCount += 1
     }
 
-    func session(_ session: (any AuthSessionInterface)?, didLogoutWith error: Error?) {
+    func authentication(_ sessionHandle: (any AuthSessionHandleInterface)?, didLogoutWith error: Error?) {
         logoutCount += 1
         logoutErrors.append(error)
     }
 
-    func session(_ session: (any AuthSessionInterface)?, sessionFetchDidComplete isInitialFetch: Bool) {
-        fetchCompletions.append(isInitialFetch)
+    func authentication(_ sessionHandle: (any AuthSessionHandleInterface)?, didCompleteFetchWith session: (any AuthSessionInterface)?, isInitialFetch flag: Bool) {
+        fetchCompletions.append(flag)
     }
 
-    func session(_ session: (any AuthSessionInterface)?, didFailWith error: AuthSessionError) {
+    func authentication(_ sessionHandle: (any AuthSessionHandleInterface)?, didFailWith error: AuthSessionError, for session: (any AuthSessionInterface)?) {
         failureErrors.append(error)
     }
 
-    func session(_ session: (any AuthSessionInterface)?, didUpdate user: (any AuthSessionUserInterface)?) {
+    func authentication(_ sessionHandle: (any AuthSessionHandleInterface)?, didUpdate user: (any AuthSessionUserInterface)?, for session: (any AuthSessionInterface)?) {
         userUpdates += 1
     }
 }

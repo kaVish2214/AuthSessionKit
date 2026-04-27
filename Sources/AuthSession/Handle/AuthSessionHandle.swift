@@ -108,9 +108,14 @@ public final class AuthSessionHandle<AuthSessionProvider>: NSObject, AuthSession
 
     // MARK: - Manual Authentication
 
-    /// Switches to manual authentication mode, disabling automatic validation on `didBecomeActive`.
+    /// Switches to manual authentication mode, disabling automatic validation on
+    /// `didBecomeActive`.
+    ///
+    /// Skipped when a biometric prompt is in progress or manual auth is already
+    /// active. Cleared automatically by ``disableManualAuthentication()`` when the
+    /// session exits the `.validating` state.
     func enableManualAuthentication() {
-        guard !isManualAuthenticationRequired else { return }
+        guard !isManualAuthenticationRequired && !isBiometricAuthenticationInProcess else { return }
         isManualAuthenticationRequired = true
     }
 
@@ -118,6 +123,18 @@ public final class AuthSessionHandle<AuthSessionProvider>: NSObject, AuthSession
     func disableManualAuthentication() {
         guard isManualAuthenticationRequired else { return }
         isManualAuthenticationRequired = false
+    }
+    
+    /// Triggers session validation when manual authentication is required.
+    ///
+    /// Intended to be called from the UI after a biometric failure left the
+    /// session in a "manual auth required" state. Guards on
+    /// ``isManualAuthenticationRequired`` so it's safe to call unconditionally.
+    public func requestManualAuthentication() {
+        guard isManualAuthenticationRequired else {
+            return
+        }
+        validateLocalSessionOrAuthenticateIfNeeded()
     }
 
     // MARK: - Session Readiness
@@ -168,12 +185,18 @@ public final class AuthSessionHandle<AuthSessionProvider>: NSObject, AuthSession
 extension AuthSessionHandle {
 
     /// Notifies all subscribed delegates when the session status changes.
+    ///
+    /// Also clears ``isManualAuthenticationRequired`` when the session transitions
+    /// out of `.validating`, restoring automatic notification-based validation.
     func invokeStatusChangeDelegates(oldValue: SessionStatus, newValue: SessionStatus) {
         guard oldValue != newValue else {
             return
         }
+        if oldValue.isValidating && !newValue.isValidating {
+            disableManualAuthentication()
+        }
         invoke { [weak self]delegate in
-            delegate?.session(self?.session, didUpdate: newValue, where: oldValue)
+            delegate?.authentication(self, didUpdateStatus: newValue, from: oldValue, for: self?.session)
         }
     }
 }
