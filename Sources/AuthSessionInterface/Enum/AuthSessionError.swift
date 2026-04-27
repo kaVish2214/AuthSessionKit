@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import BiometricAuthInterface
 
 
 /// Errors that can occur during authentication session operations.
@@ -30,7 +31,7 @@ public enum AuthSessionError: Error, Sendable {
 
     /// Biometric authentication (e.g., Face ID or Touch ID) failed.
     /// - Parameter error: The underlying biometric authentication error.
-    case biometricAuthFailure(error: Error)
+    case biometricAuthFailure(error: BiometricAuthenticationError)
     
     /// The sign-out operation failed with an underlying error.
     /// - Parameter error: The underlying error encountered during sign-out.

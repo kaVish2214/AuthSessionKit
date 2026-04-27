@@ -13,12 +13,25 @@ import BiometricAuthInterface
 // MARK: - SessionBiometricEventProxy
 
 extension AuthSessionHandle: SessionBiometricEventProxy {
-
-    /// Forwards a biometric-triggered sign-out to the session provider.
-    /// - Parameter error: The error that caused the sign-out, or `nil` for a voluntary sign-out.
-    /// - Throws: Rethrows any error from the provider's `signout(with:)`.
-    func biometricAuthProxyRequestSignout(with error: (any Error)?) throws {
-        try sessionProvider.signout(with: error)
+    
+    /// Handles a biometric authentication failure by consulting the provider's policy.
+    ///
+    /// If the provider's ``AuthSessionProviderInterface/allowsSessionSigningOutOnBiometricAuthenticationFailure(with:)``
+    /// returns `true`, the user is signed out. Otherwise the session remains active
+    /// at `.signedIn` and the failure is broadcast as an `.unexpectedError` so
+    /// delegates can present a retry or fallback UI.
+    func biometricAuthenticationFailure(with error: BiometricAuthenticationError) {
+        let shouldSignOut: Bool = sessionProvider.allowsSessionSigningOutOnBiometricAuthenticationFailure(with: error)
+        if shouldSignOut {
+            do {
+                try sessionProvider.signout(with: error)
+            } catch {
+               sessionEventProxy?.execute(.unexpectedError(.signingOutFailure(error: error)))
+            }
+        }else {
+            set(sessionStatus: .signedIn)
+            sessionEventProxy?.execute(.unexpectedError(.biometricAuthFailure(error: error)))
+        }
     }
     
     /// Called when the biometric prompt is about to be presented.

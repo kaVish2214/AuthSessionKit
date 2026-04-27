@@ -52,6 +52,14 @@ public protocol AuthSessionProviderInterface: Sendable, BiometricAuthenticationR
     /// - Throws: An error if the sign-out operation fails at the provider level.
     func signout(with error: Error?) throws
     
+    /// Whether a biometric authentication failure should trigger a full sign-out.
+    ///
+    /// Return `true` (the default) to sign the user out on failure.
+    /// Return `false` to keep the session active and let delegates handle the
+    /// error — useful for retry or fallback-to-PIN flows.
+    /// - Parameter error: The biometric error that occurred.
+    func allowsSessionSigningOutOnBiometricAuthenticationFailure(with error: BiometricAuthenticationError) -> Bool
+    
 }
 
 // MARK: - Defaults
@@ -66,6 +74,11 @@ extension AuthSessionProviderInterface {
     /// Defaults to `false` — providers do not auto-refresh unless overridden.
     public var isSessionAutoRefreshEnabled: Bool {
         false
+    }
+    
+    /// Defaults to `true` — biometric failure triggers sign-out unless overridden.
+    public func allowsSessionSigningOutOnBiometricAuthenticationFailure(with error: BiometricAuthenticationError) -> Bool {
+        return true
     }
 }
 

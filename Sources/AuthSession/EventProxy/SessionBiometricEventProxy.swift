@@ -7,7 +7,7 @@
 
 import UIKit
 import AuthSessionInterface
-
+import BiometricAuthInterface
 
 /// A type that handles biometric authentication outcomes on behalf of the session handle.
 ///
@@ -22,10 +22,9 @@ protocol SessionBiometricEventProxy: NSObjectProtocol, Sendable {
     /// Transitions the session to the given status (e.g., `.signedIn` on biometric success).
     func set(sessionStatus status: AuthSessionStatus)
 
-    /// Forwards a biometric-triggered sign-out to the session provider.
-    /// - Parameter error: The error that caused the sign-out, or `nil`.
-    /// - Throws: Rethrows any error from the provider's `signout(with:)`.
-    func biometricAuthProxyRequestSignout(with error: Error?) throws
+    /// Handles a biometric authentication failure, delegating the sign-out
+    /// decision to the session provider.
+    func biometricAuthenticationFailure(with error: BiometricAuthenticationError)
     
     /// Notifies the handle that a biometric prompt is about to appear, so it
     /// can suppress notification-driven validation during the system alert.

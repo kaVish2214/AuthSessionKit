@@ -50,13 +50,10 @@ extension SessionHandleEventProxy: BiometricAuthenticationDelegator {
         biometricEventProxy?.set(sessionStatus: .signedIn)
     }
 
-    /// Called when biometric authentication fails — requests sign-out through the handle.
+    /// Called when biometric authentication fails — forwards to the handle which
+    /// consults the provider's policy to decide between sign-out or staying signed in.
     func authenticationFailed(with error: BiometricAuthenticationError) {
-        do {
-            try biometricEventProxy?.biometricAuthProxyRequestSignout(with: error)
-        } catch {
-            biometricEventProxy?.sessionEventProxy?.execute(.unexpectedError(.signingOutFailure(error: error)))
-        }
+        biometricEventProxy?.biometricAuthenticationFailure(with: error)
     }
 
     /// Called when the biometric prompt presentation state changes.

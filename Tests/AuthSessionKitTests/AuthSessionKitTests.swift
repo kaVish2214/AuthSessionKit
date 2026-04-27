@@ -37,6 +37,7 @@ final class MockSessionProvider: NSObject, AuthSessionProviderInterface, @unchec
     var signoutReceivedError: Error?
 
     var canPerformAuth: Bool = false
+    var allowsSignoutOnBiometricFailure: Bool = true
 
     var initializeCallCount = 0
     var lastEventProxy: (any AuthSessionEventProxy)?
@@ -64,6 +65,10 @@ final class MockSessionProvider: NSObject, AuthSessionProviderInterface, @unchec
 
     func canPerformAuthentication() -> Bool {
         return canPerformAuth
+    }
+
+    func allowsSessionSigningOutOnBiometricAuthenticationFailure(with error: BiometricAuthenticationError) -> Bool {
+        return allowsSignoutOnBiometricFailure
     }
 }
 
@@ -562,36 +567,64 @@ struct LocalValidationTests {
 }
 
 
-// MARK: - Biometric Proxy
+// MARK: - Biometric Failure Handling
 
-@Suite("Biometric Proxy")
-struct BiometricProxyTests {
+@Suite("Biometric Failure Handling")
+struct BiometricFailureHandlingTests {
 
-    @Test func biometricSignoutForwardsToProvider() throws {
-        let (handle, provider) = makeHandle()
-        try handle.biometricAuthProxyRequestSignout(with: AuthSessionError.sessionExpired)
+    @Test func failureSignsOutWhenProviderAllows() {
+        let session = MockSession(expiresIn: 3600)
+        let (handle, provider) = makeHandle(session: session)
+        provider.allowsSignoutOnBiometricFailure = true
+        handle.biometricAuthenticationFailure(with: .failed)
         #expect(provider.signoutCallCount == 1)
     }
 
-    @Test func biometricSignoutPassesError() throws {
-        let (handle, provider) = makeHandle()
-        try handle.biometricAuthProxyRequestSignout(with: AuthSessionError.sessionExpired)
-        #expect(provider.signoutReceivedError is AuthSessionError)
+    @Test func failurePassesBiometricErrorToSignout() {
+        let session = MockSession(expiresIn: 3600)
+        let (handle, provider) = makeHandle(session: session)
+        provider.allowsSignoutOnBiometricFailure = true
+        handle.biometricAuthenticationFailure(with: .failed)
+        #expect(provider.signoutReceivedError is BiometricAuthenticationError)
     }
 
-    @Test func biometricSignoutRethrowsProviderError() {
-        let (handle, provider) = makeHandle()
-        provider.signoutError = NSError(domain: "test", code: 1)
-        #expect(throws: (any Error).self) {
-            try handle.biometricAuthProxyRequestSignout(with: nil)
-        }
-    }
+    @Test func failureSignoutErrorRoutesToProxy() {
+        let session = MockSession(expiresIn: 3600)
+        let (handle, provider) = makeHandle(session: session)
+        provider.allowsSignoutOnBiometricFailure = true
+        provider.signoutError = NSError(domain: "test", code: 42)
 
-    @Test func biometricSignoutWithNilError() throws {
-        let (handle, provider) = makeHandle()
-        try handle.biometricAuthProxyRequestSignout(with: nil)
+        handle.biometricAuthenticationFailure(with: .failed)
         #expect(provider.signoutCallCount == 1)
-        #expect(provider.signoutReceivedError == nil)
+    }
+
+    @Test func failureStaysSignedInWhenProviderDisallowsSignout() {
+        let session = MockSession(expiresIn: 3600)
+        let (handle, provider) = makeHandle(session: session)
+        provider.allowsSignoutOnBiometricFailure = false
+        handle.set(sessionStatus: .biometricAuthentication)
+
+        handle.biometricAuthenticationFailure(with: .failed)
+        #expect(handle.sessionStatus == .signedIn)
+        #expect(provider.signoutCallCount == 0)
+    }
+
+    @Test func failureNotifiesDelegateWhenProviderDisallowsSignout() {
+        let session = MockSession(expiresIn: 3600)
+        let (handle, provider, delegate) = subscribedHandle(session: session)
+        provider.allowsSignoutOnBiometricFailure = false
+        handle.set(sessionStatus: .biometricAuthentication)
+
+        handle.biometricAuthenticationFailure(with: .failed)
+        drainDelegateQueue()
+        #expect(delegate.failureErrors.count == 1)
+    }
+
+    @Test func defaultProviderPolicyIsSignout() {
+        let session = MockSession(expiresIn: 3600)
+        let (handle, provider) = makeHandle(session: session)
+        handle.biometricAuthenticationFailure(with: .failed)
+        #expect(provider.signoutCallCount == 1)
     }
 }
 
@@ -1008,28 +1041,24 @@ struct SessionHandleEventProxyTests {
         #expect(handle.sessionStatus == .signedIn)
     }
 
-    @Test func authenticationFailedTriesSignout() {
+    @Test func authenticationFailedForwardsToHandle() {
         let session = MockSession(expiresIn: 3600)
         let (handle, provider) = makeHandle(session: session)
+        provider.allowsSignoutOnBiometricFailure = true
         let proxy = handle.sessionEventProxy as! SessionHandleEventProxy
-        let error = BiometricAuthenticationError.failed
-        proxy.authenticationFailed(with: error)
+        proxy.authenticationFailed(with: .failed)
         #expect(provider.signoutCallCount == 1)
     }
 
-    @Test func authenticationFailedSignoutErrorRoutesToProxy() {
+    @Test func authenticationFailedRespectsProviderPolicy() {
         let session = MockSession(expiresIn: 3600)
         let (handle, provider) = makeHandle(session: session)
-        provider.signoutError = NSError(domain: "test", code: 1)
-
-        let errorCounter = SendableCounter()
-        let spyProxy = SessionHandleEventProxy(eventListening: { _ in
-            errorCounter.increment()
-        }, biometricEventProxy: handle)
-
+        provider.allowsSignoutOnBiometricFailure = false
         handle.set(sessionStatus: .biometricAuthentication)
-        spyProxy.authenticationFailed(with: .failed)
-        #expect(provider.signoutCallCount == 1)
+        let proxy = handle.sessionEventProxy as! SessionHandleEventProxy
+        proxy.authenticationFailed(with: .failed)
+        #expect(provider.signoutCallCount == 0)
+        #expect(handle.sessionStatus == .signedIn)
     }
 
     @Test func authRequestInProcessDisablesNotificationValidation() {
