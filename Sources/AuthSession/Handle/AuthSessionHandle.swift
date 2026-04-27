@@ -64,11 +64,14 @@ public final class AuthSessionHandle<AuthSessionProvider>: NSObject, AuthSession
     /// a `.sessionFetched` or `.sessionFetchFailed` event.
     private(set) var isSessionReadyToValidate: Bool = false
 
-    /// Gates the `didBecomeActive` notification handler so it skips validation on
-    /// the first activation — allowing the provider's initial fetch to run first.
+    /// Gates the `didBecomeActive` notification handler so it skips validation
+    /// when it shouldn't run.
     ///
-    /// On the first `didBecomeActive`, this flag is set without triggering validation.
-    /// Subsequent foreground events proceed to ``validateLocalSessionOrAuthenticateIfNeeded()``.
+    /// Starts `false` — on the first `didBecomeActive`, the flag is set to `true`
+    /// without triggering validation, deferring to the provider's initial fetch.
+    /// Also set back to `false` by ``disableSessionValidationFromNotification()``
+    /// when a biometric prompt appears, preventing the system's foreground event
+    /// from starting a redundant validation cycle.
     private(set) var allowsSessionValidationFromNotifications: Bool = false
 
     /// The observer token returned by `NotificationCenter`, stored for removal in `deinit`.
@@ -136,6 +139,17 @@ public final class AuthSessionHandle<AuthSessionProvider>: NSObject, AuthSession
     func enableSessionValidationFromNotification() {
         guard !allowsSessionValidationFromNotifications else { return }
         allowsSessionValidationFromNotifications = true
+    }
+    
+    /// Temporarily prevents the `didBecomeActive` notification handler from
+    /// triggering session validation.
+    ///
+    /// Called when a biometric prompt is about to appear, because the system
+    /// alert backgrounds and re-foregrounds the app — which would fire
+    /// `didBecomeActive` and start a second validation/biometric cycle.
+    func disableSessionValidationFromNotification() {
+        guard allowsSessionValidationFromNotifications else { return }
+        allowsSessionValidationFromNotifications = false
     }
 
     // MARK: - Status

@@ -20,4 +20,13 @@ extension AuthSessionHandle: SessionBiometricEventProxy {
     func biometricAuthProxyRequestSignout(with error: (any Error)?) throws {
         try sessionProvider.signout(with: error)
     }
+    
+    /// Called when the biometric prompt is about to be presented.
+    ///
+    /// Disables notification-based validation to prevent the `didBecomeActive`
+    /// event (triggered by the system biometric alert) from starting a second
+    /// authentication cycle.
+    func biometricAuthenticationBeingAuthenticated() {
+        disableSessionValidationFromNotification()
+    }
 }

@@ -60,7 +60,13 @@ extension SessionHandleEventProxy: BiometricAuthenticationDelegator {
     }
 
     /// Called when the biometric prompt presentation state changes.
+    ///
+    /// On the transition from idle to in-progress (`false` → `true`), notifies the
+    /// handle to suppress notification-based validation so the system's foreground
+    /// event doesn't trigger a second biometric cycle.
     func authenticationRequestInProcess(didChange from: Bool, to: Bool) {
-
+        if !from && to {
+            biometricEventProxy?.biometricAuthenticationBeingAuthenticated()
+        }
     }
 }

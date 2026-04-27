@@ -285,6 +285,48 @@ struct NotificationValidationReadinessTests {
         #expect(handle2.allowsSessionValidationFromNotifications == true)
         #expect(handle2.isSessionReadyToValidate == false)
     }
+
+    @Test func disableClearsFlag() {
+        let (handle, _) = makeHandle()
+        handle.enableSessionValidationFromNotification()
+        #expect(handle.allowsSessionValidationFromNotifications == true)
+        handle.disableSessionValidationFromNotification()
+        #expect(handle.allowsSessionValidationFromNotifications == false)
+    }
+
+    @Test func disableIsIdempotent() {
+        let (handle, _) = makeHandle()
+        handle.disableSessionValidationFromNotification()
+        #expect(handle.allowsSessionValidationFromNotifications == false)
+    }
+
+    @Test func biometricBeingAuthenticatedDisablesFlag() {
+        let (handle, _) = makeHandle()
+        handle.enableSessionValidationFromNotification()
+        #expect(handle.allowsSessionValidationFromNotifications == true)
+        handle.biometricAuthenticationBeingAuthenticated()
+        #expect(handle.allowsSessionValidationFromNotifications == false)
+    }
+
+    @Test func disableThenReEnableCycle() {
+        let (handle, _) = makeHandle()
+        handle.enableSessionValidationFromNotification()
+        #expect(handle.allowsSessionValidationFromNotifications == true)
+
+        handle.biometricAuthenticationBeingAuthenticated()
+        #expect(handle.allowsSessionValidationFromNotifications == false)
+
+        handle.enableSessionValidationFromNotification()
+        #expect(handle.allowsSessionValidationFromNotifications == true)
+    }
+
+    @Test func disableDoesNotAffectSessionReadinessFlag() {
+        let (handle, _) = makeHandle()
+        handle.enableSessionForValidation()
+        handle.enableSessionValidationFromNotification()
+        handle.disableSessionValidationFromNotification()
+        #expect(handle.isSessionReadyToValidate == true)
+    }
 }
 
 
@@ -988,6 +1030,28 @@ struct SessionHandleEventProxyTests {
         handle.set(sessionStatus: .biometricAuthentication)
         spyProxy.authenticationFailed(with: .failed)
         #expect(provider.signoutCallCount == 1)
+    }
+
+    @Test func authRequestInProcessDisablesNotificationValidation() {
+        let session = MockSession(expiresIn: 3600)
+        let (handle, _) = makeHandle(session: session)
+        handle.enableSessionValidationFromNotification()
+        #expect(handle.allowsSessionValidationFromNotifications == true)
+
+        let proxy = handle.sessionEventProxy as! SessionHandleEventProxy
+        proxy.authenticationRequestInProcess(didChange: false, to: true)
+        #expect(handle.allowsSessionValidationFromNotifications == false)
+    }
+
+    @Test func authRequestInProcessEndDoesNotReEnable() {
+        let session = MockSession(expiresIn: 3600)
+        let (handle, _) = makeHandle(session: session)
+        handle.enableSessionValidationFromNotification()
+        handle.disableSessionValidationFromNotification()
+
+        let proxy = handle.sessionEventProxy as! SessionHandleEventProxy
+        proxy.authenticationRequestInProcess(didChange: true, to: false)
+        #expect(handle.allowsSessionValidationFromNotifications == false)
     }
 
     @Test func weakBiometricProxyNilAfterHandleDeallocated() {

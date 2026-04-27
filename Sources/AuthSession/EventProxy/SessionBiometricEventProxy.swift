@@ -26,4 +26,8 @@ protocol SessionBiometricEventProxy: NSObjectProtocol, Sendable {
     /// - Parameter error: The error that caused the sign-out, or `nil`.
     /// - Throws: Rethrows any error from the provider's `signout(with:)`.
     func biometricAuthProxyRequestSignout(with error: Error?) throws
+    
+    /// Notifies the handle that a biometric prompt is about to appear, so it
+    /// can suppress notification-driven validation during the system alert.
+    func biometricAuthenticationBeingAuthenticated()
 }
