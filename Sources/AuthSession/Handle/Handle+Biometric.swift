@@ -43,5 +43,6 @@ extension AuthSessionHandle: SessionBiometricEventProxy {
     /// authentication cycle.
     func biometricAuthenticationBeingAuthenticated() {
         disableSessionValidationFromNotification()
+        disableManualAuthentication()
     }
 }
