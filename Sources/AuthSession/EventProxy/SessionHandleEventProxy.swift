@@ -65,7 +65,7 @@ extension SessionHandleEventProxy: BiometricAuthenticationDelegator {
     /// handle to suppress notification-based validation so the system's foreground
     /// event doesn't trigger a second biometric cycle.
     func authenticationRequestInProcess(didChange from: Bool, to: Bool) {
-        if !from && to {
+        if to {
             biometricEventProxy?.biometricAuthenticationBeingAuthenticated()
         }
     }
