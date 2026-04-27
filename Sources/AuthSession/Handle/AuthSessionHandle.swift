@@ -133,9 +133,10 @@ public final class AuthSessionHandle<AuthSessionProvider>: NSObject, AuthSession
 
     /// Marks the notification handler as ready to trigger validation.
     ///
-    /// Called once during the first `didBecomeActive` notification. Until this flag
-    /// is set, notification callbacks skip validation to avoid racing with the
-    /// provider's initial fetch.
+    /// Called from the `didBecomeActive` notification handler when the flag is
+    /// currently `false`. Skipped when a biometric prompt is in progress
+    /// (`isBiometricAuthenticationInProcess`), so the system's foreground event
+    /// during the biometric alert cannot re-arm notification validation.
     func enableSessionValidationFromNotification() {
         guard !allowsSessionValidationFromNotifications && !isBiometricAuthenticationInProcess else { return }
         allowsSessionValidationFromNotifications = true
