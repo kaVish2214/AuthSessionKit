@@ -192,6 +192,9 @@ extension AuthSessionHandle {
         guard oldValue != newValue else {
             return
         }
+        if oldValue.isValidating && !newValue.isValidating {
+            disableManualAuthentication()
+        }
         invoke { [weak self]delegate in
             delegate?.authentication(self, didUpdateStatus: newValue, from: oldValue, for: self?.session)
         }

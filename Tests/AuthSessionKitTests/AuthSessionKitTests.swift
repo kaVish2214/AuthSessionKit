@@ -358,12 +358,20 @@ struct NotificationValidationReadinessTests {
         #expect(handle.allowsSessionValidationFromNotifications == false)
     }
 
-    @Test func biometricBeingAuthenticatedDisablesFlag() {
+    @Test func biometricBeingAuthenticatedDisablesNotificationFlag() {
         let (handle, _) = makeHandle()
         handle.enableSessionValidationFromNotification()
         #expect(handle.allowsSessionValidationFromNotifications == true)
         handle.biometricAuthenticationBeingAuthenticated()
         #expect(handle.allowsSessionValidationFromNotifications == false)
+    }
+
+    @Test func biometricBeingAuthenticatedClearsManualAuth() {
+        let (handle, _) = makeHandle()
+        handle.enableManualAuthentication()
+        #expect(handle.isManualAuthenticationRequired == true)
+        handle.biometricAuthenticationBeingAuthenticated()
+        #expect(handle.isManualAuthenticationRequired == false)
     }
 
     @Test func disableThenReEnableCycle() {

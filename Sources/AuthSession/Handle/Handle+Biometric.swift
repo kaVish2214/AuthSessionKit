@@ -40,7 +40,8 @@ extension AuthSessionHandle: SessionBiometricEventProxy {
     ///
     /// Disables notification-based validation to prevent the `didBecomeActive`
     /// event (triggered by the system biometric alert) from starting a second
-    /// authentication cycle.
+    /// authentication cycle. Also clears the manual authentication flag, since
+    /// biometric is now actively handling re-authentication.
     func biometricAuthenticationBeingAuthenticated() {
         disableSessionValidationFromNotification()
         disableManualAuthentication()
