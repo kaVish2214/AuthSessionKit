@@ -192,7 +192,7 @@ extension AuthSessionHandle {
         guard oldValue != newValue else {
             return
         }
-        if oldValue.isValidating && !newValue.isValidating {
+        if oldValue.isLoadingStatus && !newValue.isLoadingStatus {
             disableManualAuthentication()
         }
         invoke { [weak self]delegate in
