@@ -137,7 +137,7 @@ public final class AuthSessionHandle<AuthSessionProvider>: NSObject, AuthSession
     /// is set, notification callbacks skip validation to avoid racing with the
     /// provider's initial fetch.
     func enableSessionValidationFromNotification() {
-        guard !allowsSessionValidationFromNotifications else { return }
+        guard !allowsSessionValidationFromNotifications && !isBiometricAuthenticationInProcess else { return }
         allowsSessionValidationFromNotifications = true
     }
     
