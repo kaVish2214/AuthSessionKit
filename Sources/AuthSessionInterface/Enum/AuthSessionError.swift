@@ -38,6 +38,10 @@ public enum AuthSessionError: Error, Sendable {
     /// - Parameter error: The underlying error returned by the user-update request.
     case userUpdateFailure(error: Error)
 
+    /// The sign-in operation failed with an underlying error.
+    /// - Parameter error: The underlying error encountered during sign-in.
+    case signingInFailure(error: Error)
+
     /// The sign-out operation failed with an underlying error.
     /// - Parameter error: The underlying error encountered during sign-out.
     case signingOutFailure(error: Error)
@@ -64,6 +68,8 @@ extension AuthSessionError: LocalizedError {
             return "Biometric authentication failed: \(error.localizedDescription)"
         case .userUpdateFailure(error: let error):
             return "User update request failed: \(error.localizedDescription)"
+        case .signingInFailure(error: let error):
+            return "Sign-in failed: \(error.localizedDescription)"
         case .signingOutFailure(error: let error):
             return "Sign-out failed: \(error.localizedDescription)"
         case .sessionFetchFailed(error: let error):
