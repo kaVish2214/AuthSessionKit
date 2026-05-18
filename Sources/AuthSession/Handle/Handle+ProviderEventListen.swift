@@ -18,6 +18,12 @@ extension AuthSessionHandle {
     ///
     /// Passed to ``SessionHandleEventProxy`` at init time so the proxy can forward
     /// provider events without the handle conforming to any external protocol.
+    ///
+    /// `sessionSignIn` is ignored while a biometric prompt is actively running so a
+    /// provider that fires `.sessionFetched` and `.sessionSignIn` in quick succession
+    /// cannot clobber the in-progress `.biometricAuthentication` status. The user is
+    /// already signed in when biometric runs, so the dropped event carries no new
+    /// "first login" semantic — biometric completion drives the `.signedIn` transition.
     func listenEvent() -> @Sendable (AuthSessionEvent) -> Void {
         return { [weak self] event in
             guard let self else {
@@ -51,6 +57,11 @@ extension AuthSessionHandle {
                 }
 
             case .sessionSignIn:
+                // Drop the event if a biometric prompt is actively running — the user is
+                // already signed in, and biometric completion will drive `.signedIn` itself.
+                guard !(sessionStatus.isBiometricAuthentication && isBiometricAuthenticationInProcess) else {
+                    return
+                }
                 self.set(sessionStatus: .signedIn)
                 self.invoke { [weak self] delegate in
                     delegate?.authentication(self, didLoginWith: self?.session?.user, for: self?.session)
@@ -65,7 +76,7 @@ extension AuthSessionHandle {
             case .sessionUpdated(let session):
                 // Session data changed (e.g. user profile update) — no status transition needed.
                 self.invoke { delegate in
-                    delegate?.authentication(self, didUpdate: self.session?.user, for: self.session)
+                    delegate?.authentication(self, didUpdate: session?.user, for: session)
                 }
 
             case .unexpectedError(let error):
