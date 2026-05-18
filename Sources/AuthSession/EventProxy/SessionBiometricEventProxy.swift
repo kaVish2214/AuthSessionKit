@@ -20,7 +20,7 @@ protocol SessionBiometricEventProxy: NSObjectProtocol, Sendable {
     var sessionEventProxy: (any AuthSessionEventProxy)? { get }
 
     /// Transitions the session to the given status (e.g., `.signedIn` on biometric success).
-    func set(sessionStatus status: AuthSessionStatus, function: String, file: String, line: Int)
+    func set(sessionStatus status: AuthSessionStatus)
 
     /// Handles a biometric authentication failure, delegating the sign-out
     /// decision to the session provider.
@@ -29,11 +29,4 @@ protocol SessionBiometricEventProxy: NSObjectProtocol, Sendable {
     /// Notifies the handle that a biometric prompt is about to appear, so it
     /// can suppress notification-driven validation during the system alert.
     func biometricAuthenticationBeingAuthenticated()
-}
-
-extension SessionBiometricEventProxy {
-    
-    public func set(sessionStatus status: AuthSessionStatus, function: String = #function, file: String = #file, line: Int = #line) {
-        self.set(sessionStatus: status, function: function, file: file, line: line)
-    }
 }

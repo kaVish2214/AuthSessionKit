@@ -174,9 +174,8 @@ public final class AuthSessionHandle<AuthSessionProvider>: NSObject, AuthSession
 
     /// Transitions to the given session status, ignoring no-op transitions.
     /// - Parameter status: The new status to apply.
-    func set(sessionStatus status: AuthSessionStatus, function: String = #function, file: String = #fileID, line: Int = #line) {
+    func set(sessionStatus status: AuthSessionStatus) {
         guard status != self.sessionStatus else { return }
-        debugPrint("[\(file):\(line)] \(function) -> \(status)")
         self.sessionStatus = status
     }
 }
