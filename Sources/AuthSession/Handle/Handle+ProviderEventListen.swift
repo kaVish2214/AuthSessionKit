@@ -19,11 +19,10 @@ extension AuthSessionHandle {
     /// Passed to ``SessionHandleEventProxy`` at init time so the proxy can forward
     /// provider events without the handle conforming to any external protocol.
     ///
-    /// `sessionSignIn` is ignored while a biometric prompt is actively running so a
-    /// provider that fires `.sessionFetched` and `.sessionSignIn` in quick succession
-    /// cannot clobber the in-progress `.biometricAuthentication` status. The user is
-    /// already signed in when biometric runs, so the dropped event carries no new
-    /// "first login" semantic — biometric completion drives the `.signedIn` transition.
+    /// Subsequent fetches and fetch failures route through
+    /// ``handleSessionStatusOnceFetched(shouldForceSignOut:)``, which guards
+    /// against clobbering an in-progress `.biometricAuthentication` status when
+    /// the provider issues a token refresh during a biometric prompt.
     func listenEvent() -> @Sendable (AuthSessionEvent) -> Void {
         return { [weak self] event in
             guard let self else {
@@ -41,7 +40,7 @@ extension AuthSessionHandle {
                     self.validateLocalSessionOrAuthenticateIfNeeded()
                 } else {
                     // Subsequent fetches (e.g. token refresh) — skip biometric, just check expiry.
-                    self.handleSessionStatusOnceFetched()
+                    self.handleSessionStatusOnceFetched(shouldForceSignOut: true)
                 }
                 // Notify delegates that the fetch completed.
                 self.invoke { [weak self] delegate in
@@ -51,17 +50,12 @@ extension AuthSessionHandle {
             case .sessionFetchFailed(let error):
                 // Even on failure, unlock validation so the handle doesn't stay stuck in `.syncing`.
                 self.enableSessionForValidation()
-                self.handleSessionStatusOnceFetched()
+                self.handleSessionStatusOnceFetched(shouldForceSignOut: true)
                 self.invoke { [weak self] delegate in
                     delegate?.authentication(self, didFailWith: .sessionFetchFailed(error: error), for: self?.session)
                 }
 
             case .sessionSignIn:
-                // Drop the event if a biometric prompt is actively running — the user is
-                // already signed in, and biometric completion will drive `.signedIn` itself.
-                guard !(sessionStatus.isBiometricAuthentication && isBiometricAuthenticationInProcess) else {
-                    return
-                }
                 self.set(sessionStatus: .signedIn)
                 self.invoke { [weak self] delegate in
                     delegate?.authentication(self, didLoginWith: self?.session?.user, for: self?.session)
