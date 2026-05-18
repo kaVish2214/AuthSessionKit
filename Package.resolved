@@ -1,5 +1,5 @@
 {
-  "originHash" : "7d786d9d7af8948ee3f218040a8716424b1b93a503b81f5d4ace99221d11d987",
+  "originHash" : "97df6941ed24e2e7b6fb3c3c46813fcd7e0904069315d8a06a4474a8611fc779",
   "pins" : [
     {
       "identity" : "biometricauthkit",
@@ -11,12 +11,21 @@
       }
     },
     {
+      "identity" : "factory",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/hmlongco/Factory",
+      "state" : {
+        "revision" : "ccc898f21992ebc130bc04cc197460a5ae230bcf",
+        "version" : "2.5.3"
+      }
+    },
+    {
       "identity" : "utilitykit",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/kaVish2214/UtilityKit",
       "state" : {
         "branch" : "main",
-        "revision" : "1da924ba3b4924e9ad2492727e7613dcef6d3a71"
+        "revision" : "a7653a6be37be385f3462b5b3c1c8e2e3be15237"
       }
     }
   ],

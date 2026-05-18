@@ -31,7 +31,7 @@ let package = Package(
             name: "AuthSessionInterface",
             dependencies: [
                 .product(name: "BiometricAuthInterface", package: "BiometricAuthKit"),
-                .product(name: "UtilityKit", package: "UtilityKit")
+                .product(name: "MultiCastDelegate", package: "UtilityKit")
             ],
             path: "Sources/AuthSessionInterface"
         ),
@@ -39,7 +39,8 @@ let package = Package(
             name: "AuthSession",
             dependencies: [
                 "AuthSessionInterface",
-                .product(name: "BiometricAuth", package: "BiometricAuthKit")
+                .product(name: "BiometricAuth", package: "BiometricAuthKit"),
+                .product(name: "MultiCastDelegate", package: "UtilityKit")
             ],
             path: "Sources/AuthSession"
         ),
