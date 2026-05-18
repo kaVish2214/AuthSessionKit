@@ -12,8 +12,12 @@ let package = Package(
     products: [
         // Products define the executables and libraries a package produces, making them visible to other packages.
         .library(
-            name: "AuthSessionKit",
-            targets: ["AuthSessionInterface", "AuthSession"]
+            name: "AuthSession",
+            targets: ["AuthSession"]
+        ),
+        .library(
+            name: "AuthSessionInterface",
+            targets: ["AuthSessionInterface"]
         ),
     ],
     dependencies: [
@@ -26,7 +30,7 @@ let package = Package(
         .target(
             name: "AuthSessionInterface",
             dependencies: [
-                .product(name: "BiometricAuthKit", package: "BiometricAuthKit"),
+                .product(name: "BiometricAuthInterface", package: "BiometricAuthKit"),
                 .product(name: "UtilityKit", package: "UtilityKit")
             ],
             path: "Sources/AuthSessionInterface"
@@ -35,12 +39,17 @@ let package = Package(
             name: "AuthSession",
             dependencies: [
                 "AuthSessionInterface",
+                .product(name: "BiometricAuth", package: "BiometricAuthKit")
             ],
             path: "Sources/AuthSession"
         ),
         .testTarget(
             name: "AuthSessionKitTests",
-            dependencies: ["AuthSessionInterface", "AuthSession"]
+            dependencies: [
+                "AuthSessionInterface",
+                "AuthSession",
+                .product(name: "BiometricAuth", package: "BiometricAuthKit")
+            ]
         ),
     ],
     swiftLanguageModes: [.v6]
