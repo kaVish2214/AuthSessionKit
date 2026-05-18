@@ -438,6 +438,18 @@ struct EventHandlingTests {
         #expect(handle.sessionStatus == .signedIn)
     }
 
+    /// The guard requires BOTH `.biometricAuthentication` status AND an in-flight
+    /// biometric prompt to drop the event. When biometric isn't actively running
+    /// (e.g., just completed), `sessionSignIn` should still proceed.
+    @Test func sessionSignInProceedsWhenBiometricStatusButNotInProcess() {
+        let (handle, _) = makeHandle()
+        handle.set(sessionStatus: .biometricAuthentication)
+        #expect(handle.isBiometricAuthenticationInProcess == false)
+        let listener = handle.listenEvent()
+        listener(.sessionSignIn)
+        #expect(handle.sessionStatus == .signedIn)
+    }
+
     @Test func sessionSignedOutTransitionsToSignedOut() {
         let (handle, _) = makeHandle()
         let listener = handle.listenEvent()
