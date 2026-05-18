@@ -176,7 +176,7 @@ public final class AuthSessionHandle<AuthSessionProvider>: NSObject, AuthSession
     /// - Parameter status: The new status to apply.
     func set(sessionStatus status: AuthSessionStatus, _ funcname: StaticString = #function) {
         guard status != self.sessionStatus else { return }
-        debugPrint(funcname, "LOG FUNCTION")
+        debugPrint(funcname, "LOG FUNCTION: \(#function)")
         self.sessionStatus = status
     }
 }
