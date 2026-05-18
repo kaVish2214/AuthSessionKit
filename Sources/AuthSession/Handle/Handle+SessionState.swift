@@ -16,29 +16,18 @@ extension AuthSessionHandle {
     /// Evaluates the session after a subsequent fetch (token refresh) or a fetch
     /// failure and transitions to the appropriate status.
     ///
-    /// Skips local validation if the provider handles auto-refresh. Otherwise,
-    /// checks expiry and signs out if the session is stale.
+    /// When there is no session, transitions directly to `.signedOut`. Otherwise,
+    /// trusts the session if the provider handles auto-refresh; if local
+    /// validation is in play, signs out an expired session and otherwise
+    /// transitions to `.signedIn`.
     ///
     /// `.signedIn` transitions are skipped while a biometric prompt is actively
     /// running, so a concurrent fetch cannot clobber the in-progress
     /// `.biometricAuthentication` status. Expired-session signouts are NOT
     /// guarded — a dead session must take priority over biometric.
-    ///
-    /// - Parameter shouldForceSignOut: When `true` and the session is `nil`, calls
-    ///   `provider.signout(with:)` so the provider broadcasts a signout event.
-    ///   When `false`, only sets the status to `.signedOut` without notifying
-    ///   the provider.
-    func handleSessionStatusOnceFetched(shouldForceSignOut: Bool) {
+    func handleSessionStatusOnceFetched() {
         guard let session else {
-            if shouldForceSignOut {
-                do {
-                    try sessionProvider.signout(with: AuthSessionError.sessionExpired)
-                } catch {
-                    self.sessionEventProxy?.execute(.unexpectedError(.signingOutFailure(error: error)))
-                }
-            }else {
-                set(sessionStatus: .signedOut)
-            }
+            set(sessionStatus: .signedOut)
             return
         }
         

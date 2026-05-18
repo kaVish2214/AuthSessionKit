@@ -20,9 +20,9 @@ extension AuthSessionHandle {
     /// provider events without the handle conforming to any external protocol.
     ///
     /// Subsequent fetches and fetch failures route through
-    /// ``handleSessionStatusOnceFetched(shouldForceSignOut:)``, which guards
-    /// against clobbering an in-progress `.biometricAuthentication` status when
-    /// the provider issues a token refresh during a biometric prompt.
+    /// ``handleSessionStatusOnceFetched()``, which guards against clobbering an
+    /// in-progress `.biometricAuthentication` status when the provider issues a
+    /// token refresh during a biometric prompt.
     func listenEvent() -> @Sendable (AuthSessionEvent) -> Void {
         return { [weak self] event in
             guard let self else {
@@ -40,7 +40,7 @@ extension AuthSessionHandle {
                     self.validateLocalSessionOrAuthenticateIfNeeded()
                 } else {
                     // Subsequent fetches (e.g. token refresh) — skip biometric, just check expiry.
-                    self.handleSessionStatusOnceFetched(shouldForceSignOut: true)
+                    self.handleSessionStatusOnceFetched()
                 }
                 // Notify delegates that the fetch completed.
                 self.invoke { [weak self] delegate in
@@ -50,7 +50,7 @@ extension AuthSessionHandle {
             case .sessionFetchFailed(let error):
                 // Even on failure, unlock validation so the handle doesn't stay stuck in `.syncing`.
                 self.enableSessionForValidation()
-                self.handleSessionStatusOnceFetched(shouldForceSignOut: true)
+                self.handleSessionStatusOnceFetched()
                 self.invoke { [weak self] delegate in
                     delegate?.authentication(self, didFailWith: .sessionFetchFailed(error: error), for: self?.session)
                 }

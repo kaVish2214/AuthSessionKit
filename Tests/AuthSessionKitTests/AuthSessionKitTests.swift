@@ -516,24 +516,15 @@ struct PostFetchSessionStateTests {
     @Test func noSessionTransitionsToSignedOut() {
         let (handle, _) = makeHandle(session: nil)
         handle.set(sessionStatus: .syncing)
-        handle.handleSessionStatusOnceFetched(shouldForceSignOut: false)
+        handle.handleSessionStatusOnceFetched()
         #expect(handle.sessionStatus == .signedOut)
-    }
-
-    /// With `shouldForceSignOut: true` and no session, the provider's `signout()`
-    /// is invoked so the provider broadcasts the signout event.
-    @Test func noSessionForcesProviderSignout() {
-        let (handle, provider) = makeHandle(session: nil)
-        handle.set(sessionStatus: .syncing)
-        handle.handleSessionStatusOnceFetched(shouldForceSignOut: true)
-        #expect(provider.signoutCallCount == 1)
     }
 
     @Test func autoRefreshWithoutLocalValidationTransitionsToSignedIn() {
         let session = MockSession(expiresIn: 3600)
         let (handle, _) = makeHandle(session: session, allowsLocalValidation: false, isAutoRefresh: true)
         handle.set(sessionStatus: .syncing)
-        handle.handleSessionStatusOnceFetched(shouldForceSignOut: false)
+        handle.handleSessionStatusOnceFetched()
         #expect(handle.sessionStatus == .signedIn)
     }
 
@@ -541,7 +532,7 @@ struct PostFetchSessionStateTests {
         let session = MockSession(expiresIn: 3600)
         let (handle, _) = makeHandle(session: session)
         handle.set(sessionStatus: .syncing)
-        handle.handleSessionStatusOnceFetched(shouldForceSignOut: false)
+        handle.handleSessionStatusOnceFetched()
         #expect(handle.sessionStatus == .signedIn)
     }
 
@@ -549,7 +540,7 @@ struct PostFetchSessionStateTests {
         let session = MockSession(expiresIn: 0)
         let (handle, provider) = makeHandle(session: session)
         handle.set(sessionStatus: .syncing)
-        handle.handleSessionStatusOnceFetched(shouldForceSignOut: false)
+        handle.handleSessionStatusOnceFetched()
         #expect(provider.signoutCallCount == 1)
     }
 
@@ -558,7 +549,7 @@ struct PostFetchSessionStateTests {
         let (handle, provider) = makeHandle(session: session)
         provider.signoutError = NSError(domain: "test", code: 42)
         handle.set(sessionStatus: .syncing)
-        handle.handleSessionStatusOnceFetched(shouldForceSignOut: false)
+        handle.handleSessionStatusOnceFetched()
         #expect(provider.signoutCallCount == 1)
     }
 
@@ -566,7 +557,7 @@ struct PostFetchSessionStateTests {
         let session = MockSession(expiresIn: 0)
         let (handle, provider) = makeHandle(session: session, allowsLocalValidation: false, isAutoRefresh: false)
         handle.set(sessionStatus: .syncing)
-        handle.handleSessionStatusOnceFetched(shouldForceSignOut: false)
+        handle.handleSessionStatusOnceFetched()
         #expect(provider.signoutCallCount == 1)
     }
 
@@ -574,7 +565,7 @@ struct PostFetchSessionStateTests {
         let session = MockSession(expiresIn: 0)
         let (handle, provider) = makeHandle(session: session, allowsLocalValidation: true, isAutoRefresh: true)
         handle.set(sessionStatus: .syncing)
-        handle.handleSessionStatusOnceFetched(shouldForceSignOut: false)
+        handle.handleSessionStatusOnceFetched()
         #expect(provider.signoutCallCount == 1)
     }
 }
@@ -928,14 +919,11 @@ struct IntegrationTests {
     }
 
     @Test func fetchFailedNoSessionSignsOut() {
-        let (handle, provider) = makeHandle(session: nil)
+        let (handle, _) = makeHandle(session: nil)
         let listener = handle.listenEvent()
 
         listener(.sessionFetchFailed(NSError(domain: "test", code: 1)))
-        // `shouldForceSignOut: true` is passed from the event listener — the handle
-        // delegates to the provider's `signout()` so the provider can broadcast
-        // the resulting event. The mock doesn't re-emit, so we assert on the call.
-        #expect(provider.signoutCallCount == 1)
+        #expect(handle.sessionStatus == .signedOut)
     }
 
     @Test func signInThenSignOutFlow() {
