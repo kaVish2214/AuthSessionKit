@@ -243,6 +243,44 @@ struct ManualAuthenticationTests {
         #expect(handle.isManualAuthenticationRequired == true)
     }
 
+    /// Direct signout from `.signedIn` (no `.validating` in between) should still
+    /// clear the manual auth flag — otherwise the flag would persist across the
+    /// signout and break notification-based validation on the next session.
+    @Test func clearedOnDirectSignOutFromSignedIn() {
+        let (handle, _) = makeHandle()
+        handle.set(sessionStatus: .signedIn)
+        handle.enableManualAuthentication()
+        #expect(handle.isManualAuthenticationRequired == true)
+
+        handle.set(sessionStatus: .signedOut)
+        #expect(handle.isManualAuthenticationRequired == false)
+    }
+
+    /// Signout from `.biometricAuthentication` (e.g., biometric failure with
+    /// provider-allowed signout) should clear the flag.
+    @Test func clearedOnSignOutFromBiometricAuthentication() {
+        let (handle, _) = makeHandle()
+        handle.set(sessionStatus: .biometricAuthentication)
+        handle.enableManualAuthentication()
+        #expect(handle.isManualAuthenticationRequired == true)
+
+        handle.set(sessionStatus: .signedOut)
+        #expect(handle.isManualAuthenticationRequired == false)
+    }
+
+    /// `sessionSignedOut` event from the provider should clear a sticky manual
+    /// auth flag even when the prior status wasn't `.validating`.
+    @Test func clearedBySessionSignedOutEvent() {
+        let (handle, _) = makeHandle()
+        handle.set(sessionStatus: .signedIn)
+        handle.enableManualAuthentication()
+        #expect(handle.isManualAuthenticationRequired == true)
+
+        let listener = handle.listenEvent()
+        listener(.sessionSignedOut(error: nil))
+        #expect(handle.isManualAuthenticationRequired == false)
+    }
+
     @Test func requestManualAuthRunsValidation() {
         let session = MockSession(expiresIn: 3600)
         let (handle, _) = makeReadyHandle(session: session, allowsLocalValidation: true, canPerformAuth: false)

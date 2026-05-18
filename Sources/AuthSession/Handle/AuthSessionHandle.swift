@@ -187,12 +187,19 @@ extension AuthSessionHandle {
     /// Notifies all subscribed delegates when the session status changes.
     ///
     /// Also clears ``isManualAuthenticationRequired`` when the session transitions
-    /// out of `.validating`, restoring automatic notification-based validation.
+    /// out of `.validating` or into `.signedOut`, restoring automatic
+    /// notification-based validation. The `.signedOut` clear prevents the flag
+    /// from leaking across a signout when the transition didn't pass through
+    /// `.validating` (e.g., external signout event, biometric failure with
+    /// provider-allowed signout).
     func invokeStatusChangeDelegates(oldValue: SessionStatus, newValue: SessionStatus) {
         guard oldValue != newValue else {
             return
         }
         if oldValue.isValidating && !newValue.isValidating {
+            disableManualAuthentication()
+        }
+        if newValue.isSignedOut && isManualAuthenticationRequired {
             disableManualAuthentication()
         }
         invoke { [weak self]delegate in
