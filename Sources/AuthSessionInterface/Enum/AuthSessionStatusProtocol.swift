@@ -1,5 +1,5 @@
 //
-//  AuthSessionStatusInterface.swift
+//  AuthSessionStatusProtocol.swift
 //  AuthSessionKit
 //
 //  Created by kavi gevariya on 26/04/26.
@@ -12,7 +12,7 @@ import Foundation
 ///
 /// Conformers expose Boolean queries for each possible session state,
 /// allowing UI layers to drive transitions without depending on a concrete enum.
-public protocol AuthSessionStatusInterface: Sendable, Equatable {
+public protocol AuthSessionStatusProtocol: Sendable, Equatable {
 
     /// Whether the session is being fetched or refreshed from the provider.
     var isSyncing: Bool { get }
@@ -30,7 +30,7 @@ public protocol AuthSessionStatusInterface: Sendable, Equatable {
     var isBiometricAuthentication: Bool { get }
 }
 
-extension AuthSessionStatusInterface {
+extension AuthSessionStatusProtocol {
 
     /// Whether the session is in a transitional state that implies loading.
     public var isLoadingStatus: Bool {

@@ -20,7 +20,7 @@ import MultiCastDelegate
 ///
 /// Event delivery from the provider and biometric callbacks are routed through
 /// ``SessionHandleEventProxy``, keeping the handle decoupled from external protocols.
-public final class AuthSessionHandle<AuthSessionProvider>: NSObject, AuthSessionHandleInterface, @unchecked Sendable where AuthSessionProvider: AuthSessionProviderInterface {
+public final class AuthSessionHandle<AuthSessionProvider>: NSObject, AuthSessionHandleProtocol, @unchecked Sendable where AuthSessionProvider: AuthSessionProviderProtocol {
 
     // MARK: - Protocol Requirements
 

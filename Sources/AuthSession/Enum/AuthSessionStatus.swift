@@ -52,9 +52,9 @@ extension AuthSessionStatus {
     }
 }
 
-// MARK: - AuthSessionStatusInterface
+// MARK: - AuthSessionStatusProtocol
 
-extension AuthSessionStatus: AuthSessionStatusInterface {
+extension AuthSessionStatus: AuthSessionStatusProtocol {
 
     public var isSyncing: Bool {
         if case .syncing = self {

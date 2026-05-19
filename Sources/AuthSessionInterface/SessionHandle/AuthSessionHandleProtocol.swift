@@ -1,5 +1,5 @@
 //
-//  AuthSessionHandleInterface.swift
+//  AuthSessionHandleProtocol.swift
 //  AuthSessionKit
 //
 //  Created by kavi gevariya on 25/04/26.
@@ -12,17 +12,17 @@ import MultiCastDelegate
 
 /// A type that controls session-level settings and security policies.
 ///
-/// A session handle wraps an ``AuthSessionProviderInterface`` conformer,
+/// A session handle wraps an ``AuthSessionProviderProtocol`` conformer,
 /// exposing the current session and optional security features such as
 /// biometric authentication.
 ///
 /// The associated ``AuthSessionProvider`` type ties the handle to a
-/// specific provider, giving type-safe access to its ``AuthSessionInterface``
+/// specific provider, giving type-safe access to its ``AuthSessionProtocol``
 /// session.
-public protocol AuthSessionHandleInterface: DelegateMultiCasting, Sendable where Delegate == any AuthSessionDelegate {
+public protocol AuthSessionHandleProtocol: DelegateMultiCasting, Sendable where Delegate == any AuthSessionDelegate {
 
     /// The concrete session provider type this handle manages.
-    associatedtype AuthSessionProvider where AuthSessionProvider: AuthSessionProviderInterface
+    associatedtype AuthSessionProvider where AuthSessionProvider: AuthSessionProviderProtocol
 
     /// The underlying session provider.
     var sessionProvider: AuthSessionProvider { get }
@@ -30,7 +30,7 @@ public protocol AuthSessionHandleInterface: DelegateMultiCasting, Sendable where
     /// The provider's current session, or `nil` if no session is active.
     var session: AuthSessionProvider.AuthSession? { get }
     
-    associatedtype SessionStatus: AuthSessionStatusInterface
+    associatedtype SessionStatus: AuthSessionStatusProtocol
     var sessionStatus: SessionStatus { get }
 
     /// A Boolean value indicating whether a biometric authentication prompt is currently displayed.
@@ -52,7 +52,7 @@ public protocol AuthSessionHandleInterface: DelegateMultiCasting, Sendable where
 }
 
 
-extension AuthSessionHandleInterface {
+extension AuthSessionHandleProtocol {
     
     /// A Boolean value that indicates whether biometric authentication (Face ID / Touch ID) is enabled.
     var isBioMetricAuthenticationEnabled: Bool {

@@ -8,11 +8,11 @@ import MultiCastDelegate
 
 // MARK: - Mock Types
 
-struct MockUser: AuthSessionUserInterface, @unchecked Sendable {
+struct MockUser: AuthSessionUserProtocol, @unchecked Sendable {
     var identifier: String = "mock-user-id"
 }
 
-final class MockSession: AuthSessionInterface, @unchecked Sendable {
+final class MockSession: AuthSessionProtocol, @unchecked Sendable {
 
     var accessToken: String
     var expiresAt: TimeInterval
@@ -25,7 +25,7 @@ final class MockSession: AuthSessionInterface, @unchecked Sendable {
     }
 }
 
-final class MockSessionProvider: NSObject, AuthSessionProviderInterface, @unchecked Sendable {
+final class MockSessionProvider: NSObject, AuthSessionProviderProtocol, @unchecked Sendable {
 
     var session: MockSession?
     var isBioMetricAuthenticationEnabled: Bool = false
@@ -826,10 +826,10 @@ struct AuthSessionErrorTests {
 }
 
 
-// MARK: - AuthSessionInterface Default Extensions
+// MARK: - AuthSessionProtocol Default Extensions
 
-@Suite("AuthSessionInterface Defaults")
-struct AuthSessionInterfaceTests {
+@Suite("AuthSessionProtocol Defaults")
+struct AuthSessionProtocolTests {
 
     @Test func expiresInComputedFromExpiresAt() {
         let session = MockSession(expiresIn: 500)
@@ -953,7 +953,7 @@ struct IntegrationTests {
 
 final class MockDelegate: NSObject, AuthSessionDelegate, @unchecked Sendable {
 
-    var statusChanges: [(new: any AuthSessionStatusInterface, old: any AuthSessionStatusInterface)] = []
+    var statusChanges: [(new: any AuthSessionStatusProtocol, old: any AuthSessionStatusProtocol)] = []
     var loginCount = 0
     var logoutCount = 0
     var logoutErrors: [Error?] = []
@@ -961,28 +961,28 @@ final class MockDelegate: NSObject, AuthSessionDelegate, @unchecked Sendable {
     var failureErrors: [AuthSessionError] = []
     var userUpdates = 0
 
-    func authentication(_ sessionHandle: (any AuthSessionHandleInterface)?, didUpdateStatus sessionStatus: any AuthSessionStatusInterface, from oldStatus: any AuthSessionStatusInterface, for session: (any AuthSessionInterface)?) {
+    func authentication(_ sessionHandle: (any AuthSessionHandleProtocol)?, didUpdateStatus sessionStatus: any AuthSessionStatusProtocol, from oldStatus: any AuthSessionStatusProtocol, for session: (any AuthSessionProtocol)?) {
         statusChanges.append((new: sessionStatus, old: oldStatus))
     }
 
-    func authentication(_ sessionHandle: (any AuthSessionHandleInterface)?, didLoginWith user: (any AuthSessionUserInterface)?, for session: (any AuthSessionInterface)?) {
+    func authentication(_ sessionHandle: (any AuthSessionHandleProtocol)?, didLoginWith user: (any AuthSessionUserProtocol)?, for session: (any AuthSessionProtocol)?) {
         loginCount += 1
     }
 
-    func authentication(_ sessionHandle: (any AuthSessionHandleInterface)?, didLogoutWith error: Error?) {
+    func authentication(_ sessionHandle: (any AuthSessionHandleProtocol)?, didLogoutWith error: Error?) {
         logoutCount += 1
         logoutErrors.append(error)
     }
 
-    func authentication(_ sessionHandle: (any AuthSessionHandleInterface)?, didCompleteFetchWith session: (any AuthSessionInterface)?, isInitialFetch flag: Bool) {
+    func authentication(_ sessionHandle: (any AuthSessionHandleProtocol)?, didCompleteFetchWith session: (any AuthSessionProtocol)?, isInitialFetch flag: Bool) {
         fetchCompletions.append(flag)
     }
 
-    func authentication(_ sessionHandle: (any AuthSessionHandleInterface)?, didFailWith error: AuthSessionError, for session: (any AuthSessionInterface)?) {
+    func authentication(_ sessionHandle: (any AuthSessionHandleProtocol)?, didFailWith error: AuthSessionError, for session: (any AuthSessionProtocol)?) {
         failureErrors.append(error)
     }
 
-    func authentication(_ sessionHandle: (any AuthSessionHandleInterface)?, didUpdate user: (any AuthSessionUserInterface)?, for session: (any AuthSessionInterface)?) {
+    func authentication(_ sessionHandle: (any AuthSessionHandleProtocol)?, didUpdate user: (any AuthSessionUserProtocol)?, for session: (any AuthSessionProtocol)?) {
         userUpdates += 1
     }
 }

@@ -1,5 +1,5 @@
 //
-//  AuthSessionInterface.swift
+//  AuthSessionProtocol.swift
 //  AuthSessionKit
 //
 //  Created by kavi gevariya on 25/04/26.
@@ -11,9 +11,9 @@ import Foundation
 /// A type that represents an active authentication session.
 ///
 /// Conforming types expose the credentials and metadata needed to
-/// make authenticated requests, along with the ``AuthSessionUserInterface``
+/// make authenticated requests, along with the ``AuthSessionUserProtocol``
 /// describing the signed-in user.
-public protocol AuthSessionInterface: Sendable {
+public protocol AuthSessionProtocol: Sendable {
 
     /// The bearer token used to authorize API requests.
     var accessToken: String { get }
@@ -25,14 +25,14 @@ public protocol AuthSessionInterface: Sendable {
     var expiresAt: TimeInterval { get }
 
     /// The type of user associated with this session.
-    associatedtype SessionUser where SessionUser: AuthSessionUserInterface
+    associatedtype SessionUser where SessionUser: AuthSessionUserProtocol
 
     /// The authenticated user who owns this session.
     var user: SessionUser { get }
 }
 
 
-extension AuthSessionInterface {
+extension AuthSessionProtocol {
 
     /// The remaining duration, in seconds, until the session expires.
     public var expiresIn: TimeInterval {

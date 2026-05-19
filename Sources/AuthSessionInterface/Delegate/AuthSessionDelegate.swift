@@ -22,7 +22,7 @@ public protocol AuthSessionDelegate: MultiCastDelegate {
     ///   - sessionHandle: The handle that owns the session.
     ///   - session: The fetched session, or `nil` if no session exists.
     ///   - flag: `true` for the first fetch at launch; `false` for refreshes.
-    func authentication(_ sessionHandle: (any AuthSessionHandleInterface)?, didCompleteFetchWith session: (any AuthSessionInterface)?, isInitialFetch flag: Bool)
+    func authentication(_ sessionHandle: (any AuthSessionHandleProtocol)?, didCompleteFetchWith session: (any AuthSessionProtocol)?, isInitialFetch flag: Bool)
 
     /// Called whenever the session status transitions to a new value.
     /// - Parameters:
@@ -30,43 +30,43 @@ public protocol AuthSessionDelegate: MultiCastDelegate {
     ///   - sessionStatus: The new status.
     ///   - oldStatus: The previous status.
     ///   - session: The current session, or `nil`.
-    func authentication(_ sessionHandle: (any AuthSessionHandleInterface)?, didUpdateStatus sessionStatus: any AuthSessionStatusInterface, from oldStatus: any AuthSessionStatusInterface, for session: (any AuthSessionInterface)?)
+    func authentication(_ sessionHandle: (any AuthSessionHandleProtocol)?, didUpdateStatus sessionStatus: any AuthSessionStatusProtocol, from oldStatus: any AuthSessionStatusProtocol, for session: (any AuthSessionProtocol)?)
 
     /// Called when the user successfully signs in.
     /// - Parameters:
     ///   - sessionHandle: The handle that owns the session.
     ///   - user: The authenticated user, or `nil` if unavailable.
     ///   - session: The session associated with the sign-in.
-    func authentication(_ sessionHandle: (any AuthSessionHandleInterface)?, didLoginWith user: (any AuthSessionUserInterface)?, for session: (any AuthSessionInterface)?)
+    func authentication(_ sessionHandle: (any AuthSessionHandleProtocol)?, didLoginWith user: (any AuthSessionUserProtocol)?, for session: (any AuthSessionProtocol)?)
 
     /// Called when the user signs out.
     /// - Parameters:
     ///   - sessionHandle: The handle that owns the session.
     ///   - error: The error that triggered the sign-out, or `nil` for voluntary sign-out.
-    func authentication(_ sessionHandle: (any AuthSessionHandleInterface)?, didLogoutWith error: Error?)
+    func authentication(_ sessionHandle: (any AuthSessionHandleProtocol)?, didLogoutWith error: Error?)
 
     /// Called when the session's user data changes without a status transition.
     /// - Parameters:
     ///   - sessionHandle: The handle that owns the session.
     ///   - user: The updated user, or `nil`.
     ///   - session: The current session.
-    func authentication(_ sessionHandle: (any AuthSessionHandleInterface)?, didUpdate user: (any AuthSessionUserInterface)?, for session: (any AuthSessionInterface)?)
+    func authentication(_ sessionHandle: (any AuthSessionHandleProtocol)?, didUpdate user: (any AuthSessionUserProtocol)?, for session: (any AuthSessionProtocol)?)
 
     /// Called when an error occurs during session operations.
     /// - Parameters:
     ///   - sessionHandle: The handle that owns the session.
     ///   - error: The session error.
     ///   - session: The current session, or `nil`.
-    func authentication(_ sessionHandle: (any AuthSessionHandleInterface)?, didFailWith error: AuthSessionError, for session: (any AuthSessionInterface)?)
+    func authentication(_ sessionHandle: (any AuthSessionHandleProtocol)?, didFailWith error: AuthSessionError, for session: (any AuthSessionProtocol)?)
 }
 
 // MARK: - Optional Defaults
 
 extension AuthSessionDelegate {
 
-    public func authentication(_ sessionHandle: (any AuthSessionHandleInterface)?, didCompleteFetchWith session: (any AuthSessionInterface)?, isInitialFetch flag: Bool) { }
+    public func authentication(_ sessionHandle: (any AuthSessionHandleProtocol)?, didCompleteFetchWith session: (any AuthSessionProtocol)?, isInitialFetch flag: Bool) { }
 
-    public func authentication(_ sessionHandle: (any AuthSessionHandleInterface)?, didFailWith error: AuthSessionError, for session: (any AuthSessionInterface)?) { }
+    public func authentication(_ sessionHandle: (any AuthSessionHandleProtocol)?, didFailWith error: AuthSessionError, for session: (any AuthSessionProtocol)?) { }
 
-    public func authentication(_ sessionHandle: (any AuthSessionHandleInterface)?, didUpdate user: (any AuthSessionUserInterface)?, for session: (any AuthSessionInterface)?) { }
+    public func authentication(_ sessionHandle: (any AuthSessionHandleProtocol)?, didUpdate user: (any AuthSessionUserProtocol)?, for session: (any AuthSessionProtocol)?) { }
 }

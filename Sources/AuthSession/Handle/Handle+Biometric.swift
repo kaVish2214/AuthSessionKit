@@ -16,7 +16,7 @@ extension AuthSessionHandle: SessionBiometricEventProxy {
     
     /// Handles a biometric authentication failure by consulting the provider's policy.
     ///
-    /// If the provider's ``AuthSessionProviderInterface/allowsSessionSigningOutOnBiometricAuthenticationFailure(with:)``
+    /// If the provider's ``AuthSessionProviderProtocol/allowsSessionSigningOutOnBiometricAuthenticationFailure(with:)``
     /// returns `true`, the user is signed out. Otherwise, manual authentication is
     /// enabled (blocking automatic `didBecomeActive` validation), the session stays
     /// at `.signedIn`, and the failure is broadcast as an `.unexpectedError` so

@@ -1,5 +1,5 @@
 //
-//  AuthSessionProviderInterface.swift
+//  AuthSessionProviderProtocol.swift
 //  AuthSessionKit
 //
 //  Created by kavi gevariya on 25/04/26.
@@ -18,10 +18,10 @@ import BiometricAuthInterface
 ///
 /// The associated ``AuthSession`` type defines the concrete session model
 /// returned by the provider.
-public protocol AuthSessionProviderInterface: Sendable, BiometricAuthenticationRequestor {
+public protocol AuthSessionProviderProtocol: Sendable, BiometricAuthenticationRequestor {
 
     /// The concrete session type this provider manages.
-    associatedtype AuthSession where AuthSession: AuthSessionInterface
+    associatedtype AuthSession where AuthSession: AuthSessionProtocol
 
     /// The current session, or `nil` if no session has been established yet.
     var session: AuthSession? { get }
@@ -64,7 +64,7 @@ public protocol AuthSessionProviderInterface: Sendable, BiometricAuthenticationR
 
 // MARK: - Defaults
 
-extension AuthSessionProviderInterface {
+extension AuthSessionProviderProtocol {
 
     /// Defaults to `true` — providers validate sessions locally unless overridden.
     public var allowsLocalSessionValidation: Bool {
@@ -82,7 +82,7 @@ extension AuthSessionProviderInterface {
     }
 }
 
-extension AuthSessionProviderInterface {
+extension AuthSessionProviderProtocol {
 
     /// Convenience for signing out without a triggering error.
     public func signout() throws {

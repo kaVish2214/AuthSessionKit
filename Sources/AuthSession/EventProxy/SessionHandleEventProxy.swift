@@ -36,7 +36,7 @@ final class SessionHandleEventProxy: NSObject, AuthSessionEventProxy, @unchecked
     }
 
     /// Forwards a session event to the handle's event listener closure.
-    func execute(_ event: AuthSessionEvent, for sessionProvider: (any AuthSessionProviderInterface)?) {
+    func execute(_ event: AuthSessionEvent, for sessionProvider: (any AuthSessionProviderProtocol)?) {
         eventListening(event)
     }
 }

@@ -32,7 +32,7 @@ public enum AuthSessionEvent: Sendable {
     
     /// The session or its associated user data was updated.
     /// - Parameter _: The updated session, or `nil` if the session was cleared.
-    case sessionUpdated((any AuthSessionInterface)?)
+    case sessionUpdated((any AuthSessionProtocol)?)
 
     /// An unexpected error occurred during a session operation (e.g., a failed sign-out attempt).
     /// - Parameter _: The ``AuthSessionError`` describing the failure.

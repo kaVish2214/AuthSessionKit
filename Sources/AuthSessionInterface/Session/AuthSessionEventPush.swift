@@ -21,7 +21,7 @@ public protocol AuthSessionEventPush: NSObjectProtocol, Sendable {
     /// - Parameters:
     ///   - event: The event describing the current session state change.
     ///   - sessionProvider: The provider that originated the event, or `nil` for internal events.
-    func execute(_ event: AuthSessionEvent, for sessionProvider: (any AuthSessionProviderInterface)?)
+    func execute(_ event: AuthSessionEvent, for sessionProvider: (any AuthSessionProviderProtocol)?)
 }
 
 extension AuthSessionEventPush {
