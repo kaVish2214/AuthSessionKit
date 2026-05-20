@@ -18,7 +18,7 @@ import BiometricAuthInterface
 ///
 /// The associated ``AuthSession`` type defines the concrete session model
 /// returned by the provider.
-public protocol AuthSessionProviderProtocol: Sendable, BiometricAuthenticationRequestor {
+public protocol AuthSessionProviderProtocol: BiometricAuthenticationRequestor {
 
     /// The concrete session type this provider manages.
     associatedtype AuthSession where AuthSession: AuthSessionProtocol

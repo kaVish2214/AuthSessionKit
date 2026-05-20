@@ -14,7 +14,7 @@ import BiometricAuthInterface
 /// ``SessionHandleEventProxy`` holds a weak reference to a conformer and forwards
 /// biometric success/failure callbacks through it, keeping the handle decoupled
 /// from ``BiometricAuthenticationDelegator``.
-protocol SessionBiometricEventProxy: NSObjectProtocol, Sendable {
+protocol SessionBiometricEventProxy: AnyObject, Sendable {
 
     /// The event proxy used to route errors back to the session event system.
     var sessionEventProxy: (any AuthSessionEventProxy)? { get }

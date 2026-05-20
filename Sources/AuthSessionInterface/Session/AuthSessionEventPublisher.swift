@@ -13,9 +13,7 @@ import Foundation
 /// Session providers call ``publish(_:for:)`` to push ``AuthSessionEvent``
 /// notifications through the proxy chain. A convenience overload omits the
 /// provider parameter for internal callers.
-///
-/// Conforming types must inherit from `NSObject` (required by `NSObjectProtocol`).
-public protocol AuthSessionEventPublisher: NSObjectProtocol, Sendable {
+public protocol AuthSessionEventPublisher: AnyObject, Sendable {
 
     /// Delivers a session lifecycle event, optionally associated with a specific provider.
     /// - Parameters:

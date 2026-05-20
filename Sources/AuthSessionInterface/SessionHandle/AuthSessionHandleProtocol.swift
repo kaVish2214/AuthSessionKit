@@ -19,7 +19,10 @@ import MultiCastDelegate
 /// The associated ``AuthSessionProvider`` type ties the handle to a
 /// specific provider, giving type-safe access to its ``AuthSessionProtocol``
 /// session.
-public protocol AuthSessionHandleProtocol: DelegateMultiCasting, Sendable where Delegate == any AuthSessionDelegate {
+///
+/// Conformers must be reference types so the handle's identity can be observed
+/// across delegate callbacks.
+public protocol AuthSessionHandleProtocol: AnyObject, DelegateMultiCasting, Sendable where Delegate == any AuthSessionDelegate {
 
     /// The concrete session provider type this handle manages.
     associatedtype AuthSessionProvider where AuthSessionProvider: AuthSessionProviderProtocol
