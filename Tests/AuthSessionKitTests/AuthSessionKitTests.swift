@@ -1128,22 +1128,22 @@ struct DelegateNotificationTests {
 @Suite("SessionHandleEventProxy")
 struct SessionHandleEventProxyTests {
 
-    @Test func executeForwardsEventToClosure() {
+    @Test func publishForwardsEventToClosure() {
         let counter = SendableCounter()
         let proxy = SessionHandleEventProxy(eventListening: { _ in
             counter.increment()
         })
-        proxy.execute(.fetchingSession)
-        proxy.execute(.sessionSignIn)
+        proxy.publish(.fetchingSession)
+        proxy.publish(.sessionSignIn)
         #expect(counter.value == 2)
     }
 
-    @Test func executeConvenienceOmitsProvider() {
+    @Test func publishConvenienceOmitsProvider() {
         let counter = SendableCounter()
         let proxy = SessionHandleEventProxy(eventListening: { _ in
             counter.increment()
         })
-        proxy.execute(.fetchingSession)
+        proxy.publish(.fetchingSession)
         #expect(counter.value == 1)
     }
 
@@ -1228,7 +1228,7 @@ struct DeinitCleanupTests {
             let handle = AuthSessionHandle(sessionProvider: MockSessionProvider())
             proxy = handle.sessionEventProxy as! SessionHandleEventProxy
         }
-        proxy.execute(.sessionSignIn)
+        proxy.publish(.sessionSignIn)
         proxy.authenticated()
     }
 }

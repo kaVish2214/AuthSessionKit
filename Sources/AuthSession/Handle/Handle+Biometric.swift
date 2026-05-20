@@ -27,12 +27,12 @@ extension AuthSessionHandle: SessionBiometricEventProxy {
             do {
                 try sessionProvider.signout(with: error)
             } catch {
-               sessionEventProxy?.execute(.unexpectedError(.signingOutFailure(error: error)))
+               sessionEventProxy?.publish(.unexpectedError(.signingOutFailure(error: error)))
             }
         }else {
             enableManualAuthentication()
             set(sessionStatus: .signedIn)
-            sessionEventProxy?.execute(.unexpectedError(.biometricAuthFailure(error: error)))
+            sessionEventProxy?.publish(.unexpectedError(.biometricAuthFailure(error: error)))
         }
     }
     

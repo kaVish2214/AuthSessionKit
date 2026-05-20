@@ -13,7 +13,7 @@ import BiometricAuthInterface
 /// Bridges session provider events and biometric callbacks to the session handle
 /// without exposing the handle to external protocols.
 ///
-/// The provider calls ``execute(_:for:)`` to deliver session events, and
+/// The provider calls ``publish(_:for:)`` to deliver session events, and
 /// ``BiometricAuthManager`` calls the ``BiometricAuthenticationDelegator`` methods
 /// for authentication results — both are forwarded to the handle via closures
 /// and the ``SessionBiometricEventProxy``.
@@ -36,7 +36,7 @@ final class SessionHandleEventProxy: NSObject, AuthSessionEventProxy, @unchecked
     }
 
     /// Forwards a session event to the handle's event listener closure.
-    func execute(_ event: AuthSessionEvent, for sessionProvider: (any AuthSessionProviderProtocol)?) {
+    func publish(_ event: AuthSessionEvent, for sessionProvider: (any AuthSessionProviderProtocol)?) {
         eventListening(event)
     }
 }

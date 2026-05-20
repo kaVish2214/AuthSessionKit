@@ -42,7 +42,7 @@ extension AuthSessionHandle {
                     do {
                         try sessionProvider.signout(with: AuthSessionError.sessionExpired)
                     } catch {
-                        self.sessionEventProxy?.execute(.unexpectedError(.signingOutFailure(error: error)))
+                        self.sessionEventProxy?.publish(.unexpectedError(.signingOutFailure(error: error)))
                     }
                 // Session is still valid — request biometric re-authentication if available.
                 } else if sessionProvider.canPerformAuthentication(), let biometricAuth = biometricAuthentication {

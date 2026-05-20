@@ -46,7 +46,7 @@ extension AuthSessionHandle {
             do {
                 try sessionProvider.signout(with: AuthSessionError.sessionExpired)
             } catch {
-                self.sessionEventProxy?.execute(.unexpectedError(.signingOutFailure(error: error)))
+                self.sessionEventProxy?.publish(.unexpectedError(.signingOutFailure(error: error)))
             }
         } else {
             // Drop the event if a biometric prompt is actively running — the user is
