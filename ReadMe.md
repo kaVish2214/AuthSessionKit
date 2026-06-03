@@ -1,0 +1,433 @@
+# AuthSessionKit
+
+A Swift package that manages the **lifecycle of an authentication session** on Apple platforms — fetching, validating, refreshing, biometric gating, sign-in / sign-out, and broadcasting state changes to multiple observers.
+
+`AuthSessionKit` is intentionally split into two products so that feature modules can depend only on the public surface (protocols, enums, errors) without pulling in the implementation. This keeps build times low and makes the package easy to mock in tests.
+
+- **Platforms**: iOS 14+, macOS 10.14+
+- **Swift**: 6.3 (language mode `.v6`, full strict concurrency)
+- **Dependencies**:
+  - [`BiometricAuthKit`](https://github.com/kaVish2214/BiometricAuthKit) — `BiometricAuth`, `BiometricAuthInterface`
+  - [`UtilityKit`](https://github.com/kaVish2214/UtilityKit) — `MultiCastDelegate`
+
+---
+
+## Products
+
+| Product | Role | Depend on it when… |
+| --- | --- | --- |
+| **`AuthSessionInterface`** | Protocols, enums, errors, events, delegates — the public contract of an authentication session. Contains **no implementation logic**. | Your module needs to *describe*, *consume*, or *mock* a session (e.g. feature modules, view models, test doubles). |
+| **`AuthSession`** | Concrete implementation of the interface: `AuthSessionHandle`, status machine, event proxies, biometric integration, foreground-validation logic. | Your module needs to *create* and *own* a real session handle (typically the app's composition root). |
+
+---
+
+## Module Map
+
+```
+AuthSessionKit/
+├── Sources/
+│   ├── AuthSessionInterface/        ← product 1 (public contract)
+│   │   ├── Session/
+│   │   │   ├── AuthSessionProtocol.swift
+│   │   │   ├── AuthSessionEventProxy.swift
+│   │   │   └── AuthSessionEventPublisher.swift
+│   │   ├── SessionProvider/
+│   │   │   └── AuthSessionProviderProtocol.swift
+│   │   ├── SessionHandle/
+│   │   │   └── AuthSessionHandleProtocol.swift
+│   │   ├── User/
+│   │   │   └── AuthSessionUserProtocol.swift
+│   │   ├── Delegate/
+│   │   │   └── AuthSessionDelegate.swift
+│   │   └── Enum/
+│   │       ├── AuthSessionStatusProtocol.swift
+│   │       ├── AuthSessionEvent.swift
+│   │       └── AuthSessionError.swift
+│   │
+│   └── AuthSession/                 ← product 2 (implementation)
+│       ├── Enum/
+│       │   └── AuthSessionStatus.swift
+│       ├── Handle/
+│       │   ├── AuthSessionHandle.swift
+│       │   ├── Handle+ProviderEventListen.swift
+│       │   ├── Handle+LocalValidation.swift
+│       │   ├── Handle+SessionState.swift
+│       │   ├── Handle+Biometric.swift
+│       │   └── Handle+Notifications.swift
+│       └── EventProxy/
+│           ├── SessionHandleEventProxy.swift
+│           └── SessionBiometricEventProxy.swift
+│
+└── Tests/AuthSessionKitTests/
+    └── AuthSessionKitTests.swift
+```
+
+---
+
+## `AuthSessionInterface` — the Public Contract
+
+A protocol-first surface that describes *what* an authenticated session is, without committing to *how* it's stored, fetched, or refreshed.
+
+### Session model
+
+#### `AuthSessionProtocol`
+The minimal shape of an active session: `accessToken`, `expiresAt`, `expiresIn`, and the signed-in `user`. Default implementations:
+
+| Member | Default | Notes |
+| --- | --- | --- |
+| `expiresIn` | derived from `expiresAt` | Never negative — `max(timeIntervalSinceNow, 0)`. |
+| `isSessionExpired` | `expiresAt - now < 120s` | The **120-second buffer** absorbs network latency and clock drift, so a session that's about to expire is treated as expired *before* the next request fails. |
+
+#### `AuthSessionUserProtocol`
+The authenticated user. `Hashable` + `Sendable`, with a single `identifier: String` requirement — safe to use as a dictionary key and across concurrency domains.
+
+### Session ownership
+
+#### `AuthSessionProviderProtocol`
+Vends and manages a session. Conformers are responsible for fetching, refreshing, signing in / out, and answering policy questions. The protocol **refines `BiometricAuthenticationRequestor`** from `BiometricAuthInterface`, so conformers must also implement:
+
+- `preferredAuthenticationReason() -> String` — the reason shown in the Face ID / Touch ID system prompt.
+- `canPerformAuthentication() -> Bool` — whether the device + provider are currently in a state where biometric is allowed.
+
+Provider-owned policy knobs:
+
+| Property / Method | Default | Purpose |
+| --- | --- | --- |
+| `allowsLocalSessionValidation` | `true` | Should the handle run local expiry checks on foreground? |
+| `isSessionAutoRefreshEnabled` | `false` | Does the provider refresh tokens itself? |
+| `allowsSessionSigningOutOnBiometricAuthenticationFailure(with:)` | `true` | Should a biometric failure force sign-out? Return `false` to keep the session alive and surface the error to delegates instead. |
+| `setBioMetricAuthentication(_:)` | — | Enables / disables biometric requirement. |
+| `signout(with:)` / `signout()` | — | Voluntary or error-driven sign-out. |
+| `initializeSessionProvider(for:)` | — | Called once by the handle to hand over an `AuthSessionEventProxy` the provider uses to publish lifecycle events. |
+
+#### `AuthSessionHandleProtocol`
+The reference-typed owner of a session and its provider. Conforms to `DelegateMultiCasting` (from `MultiCastDelegate`) so multiple observers can subscribe to the same handle.
+
+| Member | Purpose |
+| --- | --- |
+| `sessionProvider` | The underlying provider. |
+| `session` | The current session, or `nil`. |
+| `sessionStatus` | The current `AuthSessionStatusProtocol` value. |
+| `isBiometricAuthenticationInProcess` | Whether a Face ID / Touch ID alert is currently presented. |
+| `isManualAuthenticationRequired` | Set to `true` when biometric failed *and* the provider opted not to sign out — auto-validation on foreground is paused until the UI calls `requestManualAuthentication()`. |
+| `isBioMetricAuthenticationEnabled` *(ext.)* | Mirrors the provider flag. |
+| `setBioMetricAuthentication(_:)` *(ext.)* | Mirrors the provider call. |
+| `requestManualAuthentication()` | UI entry point to resume validation after biometric failure. No-op when `isManualAuthenticationRequired` is `false`, so it's always safe to call. |
+| `init(sessionProvider:)` | Creates a handle backed by the given provider. |
+
+### State, events, errors
+
+#### `AuthSessionStatusProtocol`
+A protocol-shaped enum of session states with Boolean queries: `isSyncing`, `isSignedIn`, `isSignedOut`, `isValidating`, `isBiometricAuthentication`, plus a derived `isLoadingStatus` (true when syncing OR validating OR running biometric). UI layers can drive transitions without depending on the concrete enum.
+
+#### `AuthSessionEvent`
+What providers emit through the event proxy:
+
+| Case | Meaning |
+| --- | --- |
+| `fetchingSession` | Fetch / refresh has started. |
+| `sessionFetched(isInitialFetch: Bool)` | Fetch finished. `true` only for the launch-time fetch. |
+| `sessionFetchFailed(Error)` | Fetch errored. |
+| `sessionSignIn` | User just signed in (interactive). |
+| `sessionSignedOut(error: Error?)` | User signed out — `error` is `nil` for voluntary sign-outs. |
+| `sessionUpdated((any AuthSessionProtocol)?)` | Session/user data changed without a status transition (e.g., profile edit). |
+| `unexpectedError(AuthSessionError)` | Out-of-band error to fan out to delegates. |
+
+#### `AuthSessionError`
+All failure modes — `sessionMalformed`, `sessionExpired`, `networkFailure(error:)`, `biometricAuthFailure(error:)`, `userUpdateFailure(error:)`, `signingInFailure(error:)`, `signingOutFailure(error:)`, `sessionFetchFailed(error:)`. Conforms to `LocalizedError` with user-facing strings (e.g. `"The authentication session has timed out."`, `"Sign-out failed: <underlying>"`).
+
+#### `AuthSessionDelegate`
+A `MultiCastDelegate` for observing the handle. Callbacks for:
+
+- `didCompleteFetchWith:isInitialFetch:` — fetch finished.
+- `didUpdateStatus:from:for:` — status transitioned.
+- `didLoginWith:for:` — user signed in.
+- `didLogoutWith:` — user signed out (carries the triggering error if any).
+- `didUpdate user:for:` — user data changed.
+- `didFailWith:for:` — an `AuthSessionError` occurred.
+
+Most methods ship with no-op defaults so observers implement only what they care about.
+
+### Event plumbing
+
+#### `AuthSessionEventPublisher`
+The base protocol for delivering events: `publish(_:for:)` plus a convenience `publish(_:)` that drops the provider parameter.
+
+#### `AuthSessionEventProxy`
+A specialization initialized with a `@Sendable (AuthSessionEvent) -> Void` closure that forwards each event — keeping the handle decoupled from any protocol the provider would otherwise need to conform to.
+
+---
+
+## `AuthSession` — the Implementation
+
+### `AuthSessionStatus`
+The concrete `AuthSessionStatusProtocol` enum: `.syncing`, `.signedIn`, `.signedOut`, `.validating`, `.biometricAuthentication`. `Hashable + Sendable`. Also exposes two internal queries that gate state transitions cleanly:
+
+| Property | True for |
+| --- | --- |
+| `allowsBiometricAuthentication` | `.signedIn`, `.syncing`, `.validating` |
+| `allowsLocalValidation`         | `.signedIn`, `.syncing` |
+
+### `AuthSessionHandle<AuthSessionProvider>`
+The core type. A generic `final class` (`NSObject`, `@unchecked Sendable`) that:
+
+1. **Wires up the provider** with a `SessionHandleEventProxy` at init time and constructs a `BiometricAuthManager` (from `BiometricAuthKit`) that points at the provider.
+2. **Tracks status** through a single `sessionStatus` property whose `didSet` fans out a `didUpdateStatus` callback to all subscribed `AuthSessionDelegate`s.
+3. **Listens to `UIApplication.didBecomeActiveNotification`** to revalidate on foreground.
+4. **Guards against premature validation** with `isSessionReadyToValidate` — `validateLocalSessionOrAuthenticateIfNeeded()` short-circuits until the first `sessionFetched` / `sessionFetchFailed` event. Without this, a launch-time `didBecomeActive` would race the initial fetch and yield a false `.signedOut`.
+5. **Handles the biometric-prompt foreground race** with `allowsSessionValidationFromNotifications` — the system biometric alert backgrounds and re-foregrounds the app, which would otherwise trigger a second validation cycle. On the **first** activation the handler flips the flag without running validation (deferring to the provider's initial fetch); on subsequent activations it runs validation; while a biometric prompt is in progress the flag is forced off.
+6. **Supports manual re-authentication** via `isManualAuthenticationRequired` + `requestManualAuthentication()`, used when the provider opts *not* to sign out on biometric failure. The flag auto-clears when the session leaves `.validating`, enters `.signedOut`, or receives a `.sessionSignedOut` event — preventing it from leaking across sessions.
+7. **Cleans up** the notification observer in `deinit`.
+
+The handle is split into focused extensions for readability:
+
+| File | Responsibility |
+| --- | --- |
+| `AuthSessionHandle.swift` | Stored state, init / deinit, status setter, manual-auth flag toggles. |
+| `Handle+ProviderEventListen.swift` | The closure passed to the event proxy — maps each `AuthSessionEvent` onto status transitions and delegate calls. Initial fetch runs `validateLocalSessionOrAuthenticateIfNeeded`; subsequent fetches run `handleSessionStatusOnceFetched`. |
+| `Handle+LocalValidation.swift` | The launch / foreground validation routine (`validateLocalSessionOrAuthenticateIfNeeded`). Decides between expiry-driven sign-out, biometric prompt, or straight-to-`.signedIn` based on provider policy. |
+| `Handle+SessionState.swift` | Post-fetch state evaluation (`handleSessionStatusOnceFetched`) for token refreshes; guards against clobbering an in-progress biometric prompt. |
+| `Handle+Biometric.swift` | `SessionBiometricEventProxy` conformance — biometric success → `.signedIn`; biometric failure consults `allowsSessionSigningOutOnBiometricAuthenticationFailure(with:)` to choose between sign-out and manual-auth-required. |
+| `Handle+Notifications.swift` | `didBecomeActiveNotification` observer with first-activation deferral. |
+
+### Event proxies
+
+- **`SessionHandleEventProxy`** — forwards provider events to the handle's closure listener, and bridges `BiometricAuthenticationDelegator` callbacks (`authenticated()`, `authenticationFailed(with:)`, `authenticationRequestInProcess(didChange:to:)`) back through the handle via `SessionBiometricEventProxy`. Holds a **weak** reference to the biometric proxy so it can't extend the handle's lifetime.
+- **`SessionBiometricEventProxy`** (internal protocol) — the seam the proxy uses to push biometric outcomes (`set(sessionStatus:)`, `biometricAuthenticationFailure(with:)`, `biometricAuthenticationBeingAuthenticated()`) to the handle without coupling it to `BiometricAuthenticationDelegator`.
+
+---
+
+## Lifecycle at a Glance
+
+```
+                ┌──────────────────────────────────────────────────────┐
+                │                  AuthSessionHandle                   │
+                │                                                      │
+   init(provider) ─────► creates SessionHandleEventProxy ──────────┐   │
+                │        creates BiometricAuthManager              │   │
+                │        provider.initializeSessionProvider(for:)  │   │
+                │        observes didBecomeActiveNotification      │   │
+                └──────────────────────────────────────────────────┼───┘
+                                                                   │
+                                                                   ▼
+                  ┌────────────────── AuthSessionEvent ──────────────────┐
+                  │ fetchingSession     ───► status = .syncing           │
+                  │ sessionFetched      ───► validateLocalSessionOr…()   │
+                  │ sessionFetchFailed  ───► handleSessionStatusOnce…()  │
+                  │ sessionSignIn       ───► status = .signedIn          │
+                  │ sessionSignedOut    ───► status = .signedOut         │
+                  │ sessionUpdated      ───► notify delegates            │
+                  │ unexpectedError     ───► notify delegates            │
+                  └──────────────────────────────────────────────────────┘
+                                          │
+                                          ▼
+                            AuthSessionDelegate (multicast)
+```
+
+**Validation decision tree** (`validateLocalSessionOrAuthenticateIfNeeded`):
+
+```
+isSessionReadyToValidate == false ─────────────────────────► (no-op)
+session == nil ─────────────────────────────────────────────► .signedOut
+biometric prompt already in progress ──────────────────────► (no-op)
+
+allowsLocalSessionValidation = true  (and status allowsLocalValidation)
+  set status = .validating
+  ├─ expiresIn ≤ 180s ─────────────────────────────────────► signout(.sessionExpired)
+  ├─ provider.canPerformAuthentication() == true ─────────► .biometricAuthentication
+  └─ otherwise ───────────────────────────────────────────► .signedIn
+
+allowsLocalSessionValidation = false
+  ├─ canPerformAuthentication() + status allowsBiometricAuthentication ► .biometricAuthentication
+  ├─ canPerformAuthentication() (otherwise) ──────────────► .signedIn
+  └─ status was .syncing ────────────────────────────────► .signedIn
+```
+
+**Post-fetch evaluation** (`handleSessionStatusOnceFetched`, used for token refreshes and fetch failures):
+
+```
+session == nil ──────────────────────────────────────────► .signedOut
+
+allowsLocalSessionValidation = false && isSessionAutoRefreshEnabled
+  ├─ biometric prompt in progress ───────────────────────► (no-op, prompt drives status)
+  └─ otherwise ──────────────────────────────────────────► .signedIn
+
+otherwise
+  ├─ session.isSessionExpired ────────────────────────────► signout(.sessionExpired)
+  ├─ biometric prompt in progress ───────────────────────► (no-op)
+  └─ otherwise ──────────────────────────────────────────► .signedIn
+```
+
+**Biometric failure policy** (`Handle+Biometric.swift`):
+
+```
+provider.allowsSessionSigningOutOnBiometricAuthenticationFailure(with: error)
+  ├─ true  ──► signout(with: error)
+  └─ false ──► enableManualAuthentication()
+              status = .signedIn
+              publish(.unexpectedError(.biometricAuthFailure(error:)))
+```
+
+---
+
+## Installation
+
+Add the package to `Package.swift`:
+
+```swift
+dependencies: [
+    .package(url: "https://github.com/kaVish2214/AuthSessionKit", branch: "main"),
+],
+targets: [
+    .target(
+        name: "MyFeature",
+        dependencies: [
+            .product(name: "AuthSessionInterface", package: "AuthSessionKit"),
+        ]
+    ),
+    .target(
+        name: "MyApp",
+        dependencies: [
+            .product(name: "AuthSession", package: "AuthSessionKit"),
+            .product(name: "AuthSessionInterface", package: "AuthSessionKit"),
+        ]
+    ),
+]
+```
+
+Feature modules depend on `AuthSessionInterface` only; the app's composition root depends on both `AuthSession` and `AuthSessionInterface`.
+
+---
+
+## Usage
+
+### 1. Implement the protocol surface
+
+```swift
+import AuthSessionInterface
+import BiometricAuthInterface
+
+struct MyUser: AuthSessionUserProtocol {
+    let identifier: String
+}
+
+struct MySession: AuthSessionProtocol {
+    let accessToken: String
+    let expiresAt: TimeInterval
+    let user: MyUser
+}
+
+final class MyProvider: NSObject, AuthSessionProviderProtocol, @unchecked Sendable {
+    typealias AuthSession = MySession
+
+    private(set) var session: MySession?
+    var isBioMetricAuthenticationEnabled: Bool = false
+
+    // MARK: AuthSessionProviderProtocol
+    func initializeSessionProvider(for eventProxy: any AuthSessionEventProxy) {
+        // Kick off your initial fetch and publish events through `eventProxy`:
+        //   eventProxy.publish(.fetchingSession)
+        //   eventProxy.publish(.sessionFetched(isInitialFetch: true))
+    }
+
+    func setBioMetricAuthentication(_ isEnabled: Bool) { isBioMetricAuthenticationEnabled = isEnabled }
+    func signout(with error: Error?) throws { session = nil }
+
+    // MARK: BiometricAuthenticationRequestor
+    func preferredAuthenticationReason() -> String { "Unlock your account" }
+    func canPerformAuthentication() -> Bool { isBioMetricAuthenticationEnabled }
+}
+```
+
+### 2. Create the handle in the composition root
+
+```swift
+import AuthSession
+
+let provider = MyProvider()
+let handle = AuthSessionHandle(sessionProvider: provider)
+```
+
+### 3. Observe the handle
+
+`AuthSessionHandleProtocol` conforms to `DelegateMultiCasting`, so subscribe with `subscribeDelegate(_:receive:)` and provide a dispatch queue for callbacks. Subscribers are held weakly — no need to call `unsubscribeDelegate(_:)` on dealloc.
+
+```swift
+final class RootCoordinator: NSObject, AuthSessionDelegate, @unchecked Sendable {
+    init(handle: AuthSessionHandle<MyProvider>) {
+        super.init()
+        handle.subscribeDelegate(self, receive: .main)
+    }
+
+    func authentication(_ handle: (any AuthSessionHandleProtocol)?,
+                        didUpdateStatus status: any AuthSessionStatusProtocol,
+                        from oldStatus: any AuthSessionStatusProtocol,
+                        for session: (any AuthSessionProtocol)?) {
+        switch (status.isSignedIn, status.isSignedOut, status.isLoadingStatus) {
+        case (true, _, _):  showHome()
+        case (_, true, _):  showSignIn()
+        case (_, _, true):  showSplash()
+        default: break
+        }
+    }
+
+    func authentication(_ handle: (any AuthSessionHandleProtocol)?,
+                        didFailWith error: AuthSessionError,
+                        for session: (any AuthSessionProtocol)?) {
+        present(error)
+    }
+}
+```
+
+### 4. Trigger manual re-auth (only when the provider blocks sign-out on biometric failure)
+
+```swift
+@IBAction func reAuthenticateTapped() {
+    handle.requestManualAuthentication()
+}
+```
+
+---
+
+## Concurrency
+
+- All public types are `Sendable`. `AuthSessionHandle` uses `@unchecked Sendable` because it bridges `NotificationCenter` and reference identity.
+- The package compiles under Swift 6 strict concurrency (`swiftLanguageModes: [.v6]`).
+- The event proxy closure (`@escaping @Sendable (AuthSessionEvent) -> Void`) lets providers publish from any actor / executor.
+- Delegate callbacks are dispatched **asynchronously on each subscriber's registered queue** — the handle never assumes a thread, and subscribers never block the provider.
+
+---
+
+## Testing
+
+Tests live in `Tests/AuthSessionKitTests/AuthSessionKitTests.swift` and use Apple's [Swift Testing](https://developer.apple.com/documentation/testing/) framework (`@Test`, `@Suite`, `#expect`). The interface module is the test seam — implement light fakes of `AuthSessionProviderProtocol` and `AuthSessionProtocol` to drive the handle through its full state machine without touching real biometric or network code.
+
+Suites currently covered:
+
+| Suite | Focus |
+| --- | --- |
+| `Initialization` | Default state, provider initialization, event proxy / biometric manager creation. |
+| `Status Transitions` | `set(sessionStatus:)` semantics including no-op skips. |
+| `Manual Authentication` | Flag toggles, auto-clear on `.validating` exit and `.signedOut` entry, `requestManualAuthentication()` flow. |
+| `Session Readiness` | `isSessionReadyToValidate` lifecycle. |
+| `Notification Validation Readiness` | `allowsSessionValidationFromNotifications` lifecycle, biometric-prompt interactions. |
+| `Event Handling` | Every `AuthSessionEvent` → status transition mapping. |
+| `Post-Fetch Session State` | `handleSessionStatusOnceFetched` branches across `allowsLocalSessionValidation` × `isSessionAutoRefreshEnabled` × session expiry. |
+| `Local Validation` | `validateLocalSessionOrAuthenticateIfNeeded` branches and 180-second expiry threshold. |
+| `Biometric Failure Handling` | Provider-policy-driven signout vs. manual-auth-required. |
+| `AuthSessionStatus` | State-query and protocol conformance. |
+| `AuthSessionError` | `LocalizedError` descriptions. |
+| `AuthSessionProtocol Defaults` | `expiresIn` / `isSessionExpired` math, including the 120s buffer. |
+| `Integration` | Full launch flows (valid / expired / missing session, fetch failure, sign-in then sign-out, auto-refresh path). |
+| `Delegate Notifications` | Multicast delivery, queue dispatch, multi-subscriber fan-out. |
+| `SessionHandleEventProxy` | Event-proxy forwarding, biometric callbacks, weak-handle safety. |
+| `Deinit Cleanup` | Handle deallocation and weak-reference behavior. |
+
+---
+
+## Related Packages
+
+| Package | What it provides |
+| --- | --- |
+| `BiometricAuthKit` | `BiometricAuthManager`, `BiometricAuthentication`, `BiometricAuthenticationDelegator`, `BiometricAuthenticationRequestor`, `BiometricAuthenticationError` — the Face ID / Touch ID layer the handle leans on. |
+| `UtilityKit` (`MultiCastDelegate`) | `MultiCastDelegate`, `DelegateMultiCasting`, `DelegateSubscription`, `DelegateSubscriptionHandle` — the weak-multicast infrastructure used by `AuthSessionHandleProtocol`. |
