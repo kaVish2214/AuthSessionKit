@@ -29,7 +29,7 @@ AuthSessionKit/
 │   ├── AuthSessionInterface/        ← product 1 (public contract)
 │   │   ├── Session/
 │   │   │   ├── AuthSessionProtocol.swift
-│   │   │   ├── AuthSessionEventProxy.swift
+│   │   │   ├── AuthSessionEventProxy.swift           ← inbound (provider → handle)
 │   │   │   └── AuthSessionEventPublisher.swift
 │   │   ├── SessionProvider/
 │   │   │   └── AuthSessionProviderProtocol.swift
@@ -39,6 +39,10 @@ AuthSessionKit/
 │   │   │   └── AuthSessionUserProtocol.swift
 │   │   ├── Delegate/
 │   │   │   └── AuthSessionDelegate.swift
+│   │   ├── Proxy/                                    ← outbound (handle → private listener)
+│   │   │   ├── AuthSessionDelegateEvent.swift
+│   │   │   ├── AuthSessionDelegateEventProxy.swift
+│   │   │   └── AuthSessionDelegateEventPublisher.swift
 │   │   └── Enum/
 │   │       ├── AuthSessionStatusProtocol.swift
 │   │       ├── AuthSessionEvent.swift
@@ -150,11 +154,47 @@ Most methods ship with no-op defaults so observers implement only what they care
 
 ### Event plumbing
 
-#### `AuthSessionEventPublisher`
-The base protocol for delivering events: `publish(_:for:)` plus a convenience `publish(_:)` that drops the provider parameter.
+`AuthSessionInterface` ships **two independent event channels** flowing in opposite directions. Don't confuse them — they carry different payload types, point at different participants, and exist for different reasons.
 
-#### `AuthSessionEventProxy`
-A specialization initialized with a `@Sendable (AuthSessionEvent) -> Void` closure that forwards each event — keeping the handle decoupled from any protocol the provider would otherwise need to conform to.
+| Channel | Direction | Payload | Purpose |
+| --- | --- | --- | --- |
+| **`AuthSessionEventPublisher` / `AuthSessionEventProxy`** | Provider → Handle | `AuthSessionEvent` | The provider publishes session-lifecycle facts ("I'm fetching", "fetch succeeded", "user signed out") that the handle consumes to drive its state machine. |
+| **`AuthSessionDelegateEventPublisher` / `AuthSessionDelegateEventProxy`** | Handle → private listener | `AuthSessionDelegateEvent` | The handle re-emits delegate-shaped notifications through a closure, so types that need to react to session changes don't have to expose public `AuthSessionDelegate` conformance. |
+
+#### Inbound: `AuthSessionEventPublisher`
+The base protocol for delivering events upstream: `publish(_:for:)` plus a convenience `publish(_:)` that drops the provider parameter. **Consumed by the handle.**
+
+#### Inbound: `AuthSessionEventProxy`
+A specialization of `AuthSessionEventPublisher` initialized with a `@Sendable (AuthSessionEvent) -> Void` closure that forwards each event — keeping the handle decoupled from any protocol the provider would otherwise need to conform to. The handle hands this proxy to the provider in `initializeSessionProvider(for:)`.
+
+#### Outbound: `AuthSessionDelegateEvent`
+A flat enum that mirrors the `AuthSessionDelegate` callbacks one-for-one:
+
+| Case | Maps to delegate method |
+| --- | --- |
+| `sessionFetch(isInitial: Bool)` | `didCompleteFetchWith:isInitialFetch:` |
+| `login` | `didLoginWith:for:` |
+| `logout(error: Error?)` | `didLogoutWith:` |
+| `sessionStatusChanged(oldValue:newValue:)` | `didUpdateStatus:from:for:` |
+| `failure(error: AuthSessionError)` | `didFailWith:for:` |
+| `userUpdate` | `didUpdate user:for:` |
+
+This lets a single closure handle every delegate event with a `switch`, instead of conforming to a 6-method protocol.
+
+#### Outbound: `AuthSessionDelegateEventPublisher`
+The base protocol that publishes a `AuthSessionDelegateEvent` together with the originating `AuthSessionHandleProtocol`: `publish(_:for:)`.
+
+#### Outbound: `AuthSessionDelegateEventProxy`
+A `Sendable` specialization initialized with a `@MainActor @Sendable (AuthSessionDelegateEvent) -> Void` closure. **The closure is guaranteed to be invoked on the main actor**, so UI code can react without any extra hop.
+
+**Why a second channel exists — keeping delegate routing private.**
+`AuthSessionDelegate` conformance is public by nature: any module that imports `AuthSessionInterface` can downcast a delegate and inspect its callbacks. That's the wrong shape for types that *internally* need session signals but don't want to advertise them as part of their API. For example, a view-model or coordinator that updates its own state when the session signs out shouldn't have to expose `func authentication(_:didLogoutWith:)` as a public method.
+
+`AuthSessionDelegateEventProxy` solves this by carrying the routing reaction inside an `init`-time closure rather than a protocol method. The host type holds the proxy (or simply the closure) as a private member, switches on `AuthSessionDelegateEvent`, and reacts — none of that surfaces in its public API. This is the recommended pattern when:
+
+- A class needs to react to session events but **must not** expose delegate methods publicly.
+- You want the reaction wired into the listener at construction time (composition root) rather than left for callers to discover.
+- You're working from the main actor and don't want manual `DispatchQueue.main.async` hops.
 
 ---
 
@@ -200,16 +240,35 @@ The handle is split into focused extensions for readability:
 ## Lifecycle at a Glance
 
 ```
-                ┌──────────────────────────────────────────────────────┐
-                │                  AuthSessionHandle                   │
-                │                                                      │
-   init(provider) ─────► creates SessionHandleEventProxy ──────────┐   │
-                │        creates BiometricAuthManager              │   │
-                │        provider.initializeSessionProvider(for:)  │   │
-                │        observes didBecomeActiveNotification      │   │
-                └──────────────────────────────────────────────────┼───┘
-                                                                   │
-                                                                   ▼
+                                                         INBOUND (provider → handle)
+                                                         AuthSessionEvent
+                                                                  │
+   ┌─────────────┐                                                ▼
+   │  Provider   │ ───── publish(.fetchingSession) ─────► ┌─────────────────────┐
+   │             │ ───── publish(.sessionFetched(...))──► │ AuthSessionHandle   │
+   │             │ ───── publish(.sessionSignedOut) ────► │                     │
+   └─────────────┘                                        │ (status machine)    │
+                                                          └─────────┬───────────┘
+                                                                    │
+                          ┌─────────────────────────────────────────┤
+                          │                                         │
+                          ▼                                         ▼
+                AuthSessionDelegate                  OUTBOUND (handle → private listener)
+                    (multicast,                      AuthSessionDelegateEvent
+                  public observers)                  via @MainActor closure
+                                                       (e.g. internal coordinators
+                                                        that don't expose
+                                                        delegate methods)
+```
+
+The handle has **two listener-facing surfaces**:
+
+- **`AuthSessionDelegate`** for public observers that opt-in by conforming to the protocol and calling `subscribeDelegate(_:receive:)`.
+- **`AuthSessionDelegateEventProxy`** for private listeners that want to react to the same signals via a closure, without surfacing delegate methods in their own API.
+
+Inside the handle, every `AuthSessionEvent` is mapped to status transitions and (where applicable) re-emitted as an `AuthSessionDelegateEvent`:
+
+```
                   ┌────────────────── AuthSessionEvent ──────────────────┐
                   │ fetchingSession     ───► status = .syncing           │
                   │ sessionFetched      ───► validateLocalSessionOr…()   │
@@ -219,9 +278,6 @@ The handle is split into focused extensions for readability:
                   │ sessionUpdated      ───► notify delegates            │
                   │ unexpectedError     ───► notify delegates            │
                   └──────────────────────────────────────────────────────┘
-                                          │
-                                          ▼
-                            AuthSessionDelegate (multicast)
 ```
 
 **Validation decision tree** (`validateLocalSessionOrAuthenticateIfNeeded`):
@@ -379,7 +435,40 @@ final class RootCoordinator: NSObject, AuthSessionDelegate, @unchecked Sendable 
 }
 ```
 
-### 4. Trigger manual re-auth (only when the provider blocks sign-out on biometric failure)
+### 4. (Alternative) React privately via `AuthSessionDelegateEventProxy`
+
+When a type needs to react to session events but **must not** expose public delegate methods, hold an `AuthSessionDelegateEventProxy` instead. The closure is invoked on the main actor, so UI updates are safe.
+
+```swift
+import AuthSessionInterface
+
+@MainActor
+final class HomeViewModel {
+
+    private var sessionListener: (any AuthSessionDelegateEventProxy)?
+
+    init(sessionListenerType: any AuthSessionDelegateEventProxy.Type) {
+        // The reaction is wired in at construction — never exposed publicly.
+        sessionListener = sessionListenerType.init { [weak self] event in
+            guard let self else { return }
+            switch event {
+            case .sessionStatusChanged(_, let newValue) where newValue.isSignedOut:
+                self.reset()
+            case .userUpdate:
+                self.reload()
+            case .failure(let error):
+                self.present(error)
+            default:
+                break
+            }
+        }
+    }
+}
+```
+
+The host that owns the handle is responsible for publishing into the proxy (typically via a conforming implementation that wraps the closure and forwards events). No `AuthSessionDelegate` method ever appears on `HomeViewModel`'s public surface.
+
+### 5. Trigger manual re-auth (only when the provider blocks sign-out on biometric failure)
 
 ```swift
 @IBAction func reAuthenticateTapped() {
@@ -393,8 +482,9 @@ final class RootCoordinator: NSObject, AuthSessionDelegate, @unchecked Sendable 
 
 - All public types are `Sendable`. `AuthSessionHandle` uses `@unchecked Sendable` because it bridges `NotificationCenter` and reference identity.
 - The package compiles under Swift 6 strict concurrency (`swiftLanguageModes: [.v6]`).
-- The event proxy closure (`@escaping @Sendable (AuthSessionEvent) -> Void`) lets providers publish from any actor / executor.
-- Delegate callbacks are dispatched **asynchronously on each subscriber's registered queue** — the handle never assumes a thread, and subscribers never block the provider.
+- **Inbound** events (`AuthSessionEventProxy`) use a `@escaping @Sendable (AuthSessionEvent) -> Void` closure — providers can publish from any actor or executor.
+- **Outbound** delegate events (`AuthSessionDelegateEventProxy`) use a `@escaping @MainActor @Sendable (AuthSessionDelegateEvent) -> Void` closure — every reaction is delivered on the main actor, so UI state updates need no extra hop.
+- Public `AuthSessionDelegate` callbacks are dispatched **asynchronously on each subscriber's registered queue** — the handle never assumes a thread, and subscribers never block the provider.
 
 ---
 
@@ -422,6 +512,9 @@ Suites currently covered:
 | `Delegate Notifications` | Multicast delivery, queue dispatch, multi-subscriber fan-out. |
 | `SessionHandleEventProxy` | Event-proxy forwarding, biometric callbacks, weak-handle safety. |
 | `Deinit Cleanup` | Handle deallocation and weak-reference behavior. |
+| `AuthSessionDelegateEvent` | Case creation and associated-value extraction for the outbound enum. |
+| `AuthSessionDelegateEventPublisher` | `publish(_:for:)` contract — event storage, handle identity, order preservation. |
+| `AuthSessionDelegateEventProxy` | Closure-based `init(eventListening:)` contract — main-actor delivery and payload fidelity. |
 
 ---
 

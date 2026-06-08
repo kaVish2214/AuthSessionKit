@@ -1232,3 +1232,241 @@ struct DeinitCleanupTests {
         proxy.authenticated()
     }
 }
+
+
+// MARK: - AuthSessionDelegateEvent
+
+@Suite("AuthSessionDelegateEvent")
+struct AuthSessionDelegateEventTests {
+
+    @Test func sessionFetchInitialCarriesFlag() {
+        let event = AuthSessionDelegateEvent.sessionFetch(isInitial: true)
+        guard case .sessionFetch(let isInitial) = event else {
+            Issue.record("expected .sessionFetch case")
+            return
+        }
+        #expect(isInitial == true)
+    }
+
+    @Test func sessionFetchSubsequentCarriesFlag() {
+        let event = AuthSessionDelegateEvent.sessionFetch(isInitial: false)
+        guard case .sessionFetch(let isInitial) = event else {
+            Issue.record("expected .sessionFetch case")
+            return
+        }
+        #expect(isInitial == false)
+    }
+
+    @Test func loginCaseExists() {
+        let event = AuthSessionDelegateEvent.login
+        if case .login = event {
+            #expect(Bool(true))
+        } else {
+            Issue.record("expected .login case")
+        }
+    }
+
+    @Test func logoutCarriesNilError() {
+        let event = AuthSessionDelegateEvent.logout(error: nil)
+        guard case .logout(let error) = event else {
+            Issue.record("expected .logout case")
+            return
+        }
+        #expect(error == nil)
+    }
+
+    @Test func logoutCarriesUnderlyingError() {
+        let underlying = NSError(domain: "test", code: 99)
+        let event = AuthSessionDelegateEvent.logout(error: underlying)
+        guard case .logout(let error) = event else {
+            Issue.record("expected .logout case")
+            return
+        }
+        #expect((error as? NSError)?.code == 99)
+    }
+
+    @Test func sessionStatusChangedCarriesOldAndNew() {
+        let event = AuthSessionDelegateEvent.sessionStatusChanged(
+            oldValue: AuthSessionStatus.syncing,
+            newValue: AuthSessionStatus.signedIn
+        )
+        guard case .sessionStatusChanged(let oldValue, let newValue) = event else {
+            Issue.record("expected .sessionStatusChanged case")
+            return
+        }
+        #expect(oldValue.isSyncing == true)
+        #expect(newValue.isSignedIn == true)
+    }
+
+    @Test func failureCarriesAuthSessionError() {
+        let event = AuthSessionDelegateEvent.failure(error: .sessionExpired)
+        guard case .failure(let error) = event else {
+            Issue.record("expected .failure case")
+            return
+        }
+        if case .sessionExpired = error {
+            #expect(Bool(true))
+        } else {
+            Issue.record("expected .sessionExpired payload")
+        }
+    }
+
+    @Test func userUpdateCaseExists() {
+        let event = AuthSessionDelegateEvent.userUpdate
+        if case .userUpdate = event {
+            #expect(Bool(true))
+        } else {
+            Issue.record("expected .userUpdate case")
+        }
+    }
+}
+
+
+// MARK: - AuthSessionDelegateEventPublisher
+
+/// Minimal conformer used to verify the publish contract.
+final class MockDelegateEventPublisher: AuthSessionDelegateEventPublisher, @unchecked Sendable {
+
+    var published: [(event: AuthSessionDelegateEvent, handle: (any AuthSessionHandleProtocol)?)] = []
+
+    func publish(_ event: AuthSessionDelegateEvent, for sessionHandle: (any AuthSessionHandleProtocol)?) {
+        published.append((event, sessionHandle))
+    }
+}
+
+@Suite("AuthSessionDelegateEventPublisher")
+struct AuthSessionDelegateEventPublisherTests {
+
+    @Test func publishStoresEvent() {
+        let publisher = MockDelegateEventPublisher()
+        publisher.publish(.login, for: nil)
+        #expect(publisher.published.count == 1)
+        if case .login = publisher.published.first?.event {
+            #expect(Bool(true))
+        } else {
+            Issue.record("expected .login")
+        }
+    }
+
+    @Test func publishPassesHandleReference() {
+        let publisher = MockDelegateEventPublisher()
+        let handle = AuthSessionHandle(sessionProvider: MockSessionProvider())
+        publisher.publish(.userUpdate, for: handle)
+        #expect(publisher.published.first?.handle === handle)
+    }
+
+    @Test func publishAllowsNilHandle() {
+        let publisher = MockDelegateEventPublisher()
+        publisher.publish(.userUpdate, for: nil)
+        #expect(publisher.published.first?.handle == nil)
+    }
+
+    @Test func publishPreservesOrder() {
+        let publisher = MockDelegateEventPublisher()
+        publisher.publish(.sessionFetch(isInitial: true), for: nil)
+        publisher.publish(.login, for: nil)
+        publisher.publish(.logout(error: nil), for: nil)
+
+        #expect(publisher.published.count == 3)
+        if case .sessionFetch(let initial) = publisher.published[0].event {
+            #expect(initial == true)
+        } else {
+            Issue.record("expected .sessionFetch first")
+        }
+        if case .login = publisher.published[1].event {
+            #expect(Bool(true))
+        } else {
+            Issue.record("expected .login second")
+        }
+        if case .logout = publisher.published[2].event {
+            #expect(Bool(true))
+        } else {
+            Issue.record("expected .logout third")
+        }
+    }
+}
+
+
+// MARK: - AuthSessionDelegateEventProxy
+
+/// Minimal closure-only conformer matching the proxy's `init(eventListening:)` contract.
+final class MockDelegateEventProxy: AuthSessionDelegateEventProxy, @unchecked Sendable {
+
+    let eventListening: @MainActor @Sendable (AuthSessionDelegateEvent) -> Void
+
+    required init(eventListening: @escaping @MainActor @Sendable (AuthSessionDelegateEvent) -> Void) {
+        self.eventListening = eventListening
+    }
+
+    @MainActor
+    func forward(_ event: AuthSessionDelegateEvent) {
+        eventListening(event)
+    }
+}
+
+@Suite("AuthSessionDelegateEventProxy")
+struct AuthSessionDelegateEventProxyTests {
+
+    @Test @MainActor func initStoresClosure() {
+        let counter = SendableCounter()
+        let proxy = MockDelegateEventProxy { _ in counter.increment() }
+        proxy.forward(.login)
+        #expect(counter.value == 1)
+    }
+
+    @Test @MainActor func closureReceivesEveryEvent() {
+        let counter = SendableCounter()
+        let proxy = MockDelegateEventProxy { _ in counter.increment() }
+        proxy.forward(.sessionFetch(isInitial: true))
+        proxy.forward(.login)
+        proxy.forward(.userUpdate)
+        proxy.forward(.logout(error: nil))
+        #expect(counter.value == 4)
+    }
+
+    @Test @MainActor func closureReceivesAssociatedValues() {
+        var received: AuthSessionDelegateEvent?
+        let proxy = MockDelegateEventProxy { event in received = event }
+
+        proxy.forward(.sessionFetch(isInitial: false))
+        guard case .sessionFetch(let isInitial) = received else {
+            Issue.record("expected .sessionFetch payload")
+            return
+        }
+        #expect(isInitial == false)
+    }
+
+    @Test @MainActor func closureReceivesStatusChangedPayload() {
+        var received: AuthSessionDelegateEvent?
+        let proxy = MockDelegateEventProxy { event in received = event }
+
+        proxy.forward(.sessionStatusChanged(
+            oldValue: AuthSessionStatus.signedIn,
+            newValue: AuthSessionStatus.signedOut
+        ))
+
+        guard case .sessionStatusChanged(let oldValue, let newValue) = received else {
+            Issue.record("expected .sessionStatusChanged payload")
+            return
+        }
+        #expect(oldValue.isSignedIn == true)
+        #expect(newValue.isSignedOut == true)
+    }
+
+    @Test @MainActor func closureReceivesFailurePayload() {
+        var received: AuthSessionDelegateEvent?
+        let proxy = MockDelegateEventProxy { event in received = event }
+
+        proxy.forward(.failure(error: .sessionMalformed))
+
+        guard case .failure(let error) = received else {
+            Issue.record("expected .failure payload")
+            return
+        }
+        if case .sessionMalformed = error {
+            #expect(Bool(true))
+        } else {
+            Issue.record("expected .sessionMalformed underlying")
+        }
+    }
+}
