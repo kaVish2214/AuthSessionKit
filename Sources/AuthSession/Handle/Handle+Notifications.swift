@@ -6,7 +6,14 @@
 //
 
 import Foundation
+#if canImport(UIKit)
 import UIKit
+#endif
+
+#if canImport(AppKit)
+import AppKit
+#endif
+
 
 
 // MARK: - Application Notifications
@@ -24,7 +31,15 @@ extension AuthSessionHandle {
     ///
     /// Skipped entirely when ``isManualAuthenticationRequired`` is `true`.
     func startListeningApplicationNotifications() {
-        notificationObserver = NotificationCenter.default.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: nil) { [weak self] _ in
+        
+        let notificationName: Notification.Name
+
+        #if os(iOS) || os(tvOS) || os(visionOS)
+        notificationName = UIApplication.didBecomeActiveNotification
+        #elseif os(macOS)
+        notificationName = NSApplication.didBecomeActiveNotification
+        #endif
+        notificationObserver = NotificationCenter.default.addObserver(forName: notificationName, object: nil, queue: nil) { [weak self] _ in
             guard let self, !self.isManualAuthenticationRequired else {
                 return
             }

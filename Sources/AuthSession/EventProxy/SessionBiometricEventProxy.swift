@@ -5,7 +5,6 @@
 //  Created by kavi gevariya on 25/04/26.
 //
 
-import UIKit
 import AuthSessionInterface
 import BiometricAuthInterface
 
