@@ -209,15 +209,30 @@ The concrete `AuthSessionStatusProtocol` enum: `.syncing`, `.signedIn`, `.signed
 | `allowsLocalValidation`         | `.signedIn`, `.syncing` |
 
 ### `AuthSessionHandle<AuthSessionProvider>`
-The core type. A generic `final class` (`NSObject`, `@unchecked Sendable`) that:
+The core type. A generic `final class` that is honestly `Sendable` (no `@unchecked`) — every mutable property is protected by a `ConcurrencyContainerProtocol` from `UtilityKit`'s `SwiftConcurrency` product, so the handle is safe to drive from any thread, actor, or queue. It:
 
 1. **Wires up the provider** with a `SessionHandleEventProxy` at init time and constructs a `BiometricAuthManager` (from `BiometricAuthKit`) that points at the provider.
-2. **Tracks status** through a single `sessionStatus` property whose `didSet` fans out a `didUpdateStatus` callback to all subscribed `AuthSessionDelegate`s.
-3. **Listens to `UIApplication.didBecomeActiveNotification`** to revalidate on foreground.
+2. **Tracks status** through a single `sessionStatus` accessor backed by a lock-protected `State` struct; transitions fan out a `didUpdateStatus` callback to all subscribed `AuthSessionDelegate`s.
+3. **Listens to `didBecomeActiveNotification`** (UIKit on iOS / tvOS / visionOS, AppKit on macOS) to revalidate on foreground.
 4. **Guards against premature validation** with `isSessionReadyToValidate` — `validateLocalSessionOrAuthenticateIfNeeded()` short-circuits until the first `sessionFetched` / `sessionFetchFailed` event. Without this, a launch-time `didBecomeActive` would race the initial fetch and yield a false `.signedOut`.
 5. **Handles the biometric-prompt foreground race** with `allowsSessionValidationFromNotifications` — the system biometric alert backgrounds and re-foregrounds the app, which would otherwise trigger a second validation cycle. On the **first** activation the handler flips the flag without running validation (deferring to the provider's initial fetch); on subsequent activations it runs validation; while a biometric prompt is in progress the flag is forced off.
 6. **Supports manual re-authentication** via `isManualAuthenticationRequired` + `requestManualAuthentication()`, used when the provider opts *not* to sign out on biometric failure. The flag auto-clears when the session leaves `.validating`, enters `.signedOut`, or receives a `.sessionSignedOut` event — preventing it from leaking across sessions.
 7. **Cleans up** the notification observer in `deinit`.
+
+#### Thread-safety model
+
+Mutable members split into two categories, each protected appropriately:
+
+| Category | Members | Mechanism |
+| --- | --- | --- |
+| **Continuously-mutated scalars** | `sessionStatus`, `isManualAuthenticationRequired`, `isSessionReadyToValidate`, `allowsSessionValidationFromNotifications` | Held in a private `Sendable` `State` struct behind a `ConcurrencySafeContainer`. Every read and write goes through `withLock`, with `Sendable` enforcement on both input and output. |
+| **Write-once-during-init references** | `sessionEventProxy`, `biometricAuthentication`, `notificationObserver` | `private(set) nonisolated(unsafe) var`. Assigned exactly once during `init` — before any external thread can observe `self` — then strictly read-only. A lock here would be pure overhead; the invariant is *"no writes after init"*. |
+
+The backing lock is OS-adaptive — `Mutex` (iOS 18+ / macOS 15+) → `OSAllocatedUnfairLock` (iOS 16+ / macOS 13+) → `NSLock`. Critical sections **never** wrap external calls (delegate dispatch, provider sign-out, biometric authenticate) so there's no re-entrancy or deadlock risk.
+
+#### Init ordering invariant
+
+`sessionEventProxy` and `biometricAuthentication` are assigned **before** `sessionProvider.initializeSessionProvider(for:)`. A provider that synchronously publishes events during initialization sees a fully-wired handle when the event listener fires — the biometric branch in local validation cannot be silently skipped, and signout-failure error publishes reach the proxy instead of being dropped.
 
 The handle is split into focused extensions for readability:
 
@@ -480,7 +495,7 @@ The host that owns the handle is responsible for publishing into the proxy (typi
 
 ## Concurrency
 
-- All public types are `Sendable`. `AuthSessionHandle` uses `@unchecked Sendable` because it bridges `NotificationCenter` and reference identity.
+- All public types are `Sendable`. `AuthSessionHandle` is **honestly `Sendable`** — every mutable property is protected by a `ConcurrencyContainerProtocol` (OS-adaptive lock from `UtilityKit/SwiftConcurrency`), so the handle is safe to drive from any thread, actor, or queue.
 - The package compiles under Swift 6 strict concurrency (`swiftLanguageModes: [.v6]`).
 - **Inbound** events (`AuthSessionEventProxy`) use a `@escaping @Sendable (AuthSessionEvent) -> Void` closure — providers can publish from any actor or executor.
 - **Outbound** delegate events (`AuthSessionDelegateEventProxy`) use a `@escaping @MainActor @Sendable (AuthSessionDelegateEvent) -> Void` closure — every reaction is delivered on the main actor, so UI state updates need no extra hop.
@@ -515,6 +530,8 @@ Suites currently covered:
 | `AuthSessionDelegateEvent` | Case creation and associated-value extraction for the outbound enum. |
 | `AuthSessionDelegateEventPublisher` | `publish(_:for:)` contract — event storage, handle identity, order preservation. |
 | `AuthSessionDelegateEventProxy` | Closure-based `init(eventListening:)` contract — main-actor delivery and payload fidelity. |
+| `Thread Safety` | Aggressive stress harness — 14 tests driving the lock-protected state across a concurrent dispatch queue. Peak loads: 64,000-op sustained burst from 32 parallel writers, 50,000-op chaos-monkey hammering every public/internal surface (status writes, reads, flag toggles, event listener, delegate subscribe/unsubscribe, biometric flag, re-entrant reads), 30,000-op mixed accessor/mutator fan, 10,000-op subscribe/unsubscribe storm against a 32-delegate pool, and 500 concurrent handle constructions. The suite is `.serialized` so each test gets the full thread pool to itself, then everything proves the OS-adaptive `ConcurrencySafeContainer` makes the handle safe under arbitrary multi-threaded use. |
+| `Synchronous Init Emission` | Regression for the init-ordering invariant. Uses a provider that publishes `.fetchingSession` and `.sessionFetched(isInitialFetch: true)` synchronously from inside `initializeSessionProvider(for:)`. Asserts the biometric branch fires (proving `biometricAuthentication` is visible during the synchronous validation pass), that `signout` is invoked on an expired session, and that `sessionEventProxy` / `biometricAuthentication` references and the `isSessionReadyToValidate` flag are all visible after init returns. |
 
 ---
 

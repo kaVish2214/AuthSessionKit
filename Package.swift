@@ -40,7 +40,8 @@ let package = Package(
             dependencies: [
                 "AuthSessionInterface",
                 .product(name: "BiometricAuth", package: "BiometricAuthKit"),
-                .product(name: "MultiCastDelegate", package: "UtilityKit")
+                .product(name: "MultiCastDelegate", package: "UtilityKit"),
+                .product(name: "SwiftConcurrency", package: "UtilityKit")
             ],
             path: "Sources/AuthSession"
         ),

@@ -39,7 +39,7 @@ extension AuthSessionHandle {
         #elseif os(macOS)
         notificationName = NSApplication.didBecomeActiveNotification
         #endif
-        notificationObserver = NotificationCenter.default.addObserver(forName: notificationName, object: nil, queue: nil) { [weak self] _ in
+        let notificationObserver = NotificationCenter.default.addObserver(forName: notificationName, object: nil, queue: nil) { [weak self] _ in
             guard let self, !self.isManualAuthenticationRequired else {
                 return
             }
@@ -51,5 +51,6 @@ extension AuthSessionHandle {
             }
             self.validateLocalSessionOrAuthenticateIfNeeded()
         }
+        self.setNotificationObserver(notificationObserver)
     }
 }

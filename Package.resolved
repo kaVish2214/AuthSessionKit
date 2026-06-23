@@ -1,5 +1,5 @@
 {
-  "originHash" : "3ba1dd89b220127f78b2f9ec6d6f06297edca6f57ccbbef3233f436369a46113",
+  "originHash" : "20deb0eae5455260d7bc33f772a8a674d0a62ce95dedba8db051b9213f2bea3a",
   "pins" : [
     {
       "identity" : "biometricauthkit",
@@ -7,7 +7,7 @@
       "location" : "https://github.com/kaVish2214/BiometricAuthKit",
       "state" : {
         "branch" : "main",
-        "revision" : "96454808e31025fcea2e9cdba8d155018e863f34"
+        "revision" : "5cc2eb78e76a27a5a9598230dda4db7a023a8ea3"
       }
     },
     {
@@ -25,7 +25,7 @@
       "location" : "https://github.com/kaVish2214/UtilityKit",
       "state" : {
         "branch" : "main",
-        "revision" : "1e8908135635094eed48d9fdd986b5d0cb85cbb7"
+        "revision" : "e23bf1f0660309ca8f2a2d7554e828b739db3778"
       }
     }
   ],

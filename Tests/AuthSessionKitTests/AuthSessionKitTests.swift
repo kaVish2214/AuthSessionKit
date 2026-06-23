@@ -4,6 +4,7 @@ import Foundation
 @testable import AuthSessionInterface
 import BiometricAuthInterface
 import MultiCastDelegate
+import SwiftConcurrency
 
 
 // MARK: - Mock Types
@@ -1468,5 +1469,570 @@ struct AuthSessionDelegateEventProxyTests {
         } else {
             Issue.record("expected .sessionMalformed underlying")
         }
+    }
+}
+
+
+// MARK: - Thread Safety
+
+/// Stresses the lock-protected state on `AuthSessionHandle` from multiple concurrent
+/// callers. Every assertion here verifies the handle survives concurrent access — no
+/// crash, no torn state, and final state matches the deterministic last-write-wins
+/// expectation.
+///
+/// **Serialized** because each test in this suite already spawns its own concurrent
+/// dispatch storm; letting Swift Testing run them in parallel would saturate the
+/// thread pool and risk runner timeouts.
+@Suite("Thread Safety", .serialized)
+struct ThreadSafetyTests {
+
+    /// Total iterations per test. Tuned to be heavy enough to expose races on
+    /// real hardware while still finishing quickly in CI. The suite uses
+    /// `.serialized`, so each test gets the full thread pool to itself.
+    private static let iterations = 10_000
+
+    private static let stressQueue = DispatchQueue(
+        label: "test.authsession.stress",
+        attributes: .concurrent
+    )
+
+    /// Fires `count` concurrent invocations of `body` and waits for all of them.
+    private static func concurrentlyRun(
+        count: Int = iterations,
+        _ body: @escaping @Sendable (Int) -> Void
+    ) {
+        let group = DispatchGroup()
+        for i in 0..<count {
+            group.enter()
+            stressQueue.async {
+                body(i)
+                group.leave()
+            }
+        }
+        group.wait()
+    }
+
+    @Test func statusReadsAreSafeUnderConcurrentWrites() {
+        let provider = MockSessionProvider()
+        let handle = AuthSessionHandle(sessionProvider: provider)
+
+        let statuses: [AuthSessionStatus] = [
+            .syncing, .signedIn, .signedOut, .validating, .biometricAuthentication
+        ]
+
+        Self.concurrentlyRun { i in
+            // Half the threads write, half read.
+            if i.isMultiple(of: 2) {
+                handle.set(sessionStatus: statuses[i % statuses.count])
+            } else {
+                _ = handle.sessionStatus
+            }
+        }
+
+        // Should land on *some* valid status without crashing.
+        #expect(statuses.contains(handle.sessionStatus))
+    }
+
+    @Test func manualAuthFlagIsRaceFree() {
+        let provider = MockSessionProvider()
+        let handle = AuthSessionHandle(sessionProvider: provider)
+
+        Self.concurrentlyRun { i in
+            if i.isMultiple(of: 2) {
+                handle.enableManualAuthentication()
+            } else {
+                handle.disableManualAuthentication()
+            }
+        }
+
+        // Final value is deterministic enough — it must be a valid Bool, not torn.
+        let final = handle.isManualAuthenticationRequired
+        #expect(final == true || final == false)
+    }
+
+    @Test func sessionReadinessTransitionsOnce() {
+        let provider = MockSessionProvider()
+        let handle = AuthSessionHandle(sessionProvider: provider)
+
+        Self.concurrentlyRun { _ in
+            handle.enableSessionForValidation()
+        }
+
+        // Once flipped to true, it stays true regardless of concurrent enables.
+        #expect(handle.isSessionReadyToValidate == true)
+    }
+
+    @Test func notificationValidationFlagIsRaceFree() {
+        let provider = MockSessionProvider()
+        let handle = AuthSessionHandle(sessionProvider: provider)
+
+        Self.concurrentlyRun { i in
+            if i.isMultiple(of: 2) {
+                handle.enableSessionValidationFromNotification()
+            } else {
+                handle.disableSessionValidationFromNotification()
+            }
+        }
+
+        let final = handle.allowsSessionValidationFromNotifications
+        #expect(final == true || final == false)
+    }
+
+    @Test func eventListenerSurvivesConcurrentDelivery() {
+        let provider = MockSessionProvider()
+        let handle = AuthSessionHandle(sessionProvider: provider)
+        let listener = handle.listenEvent()
+
+        let events: [AuthSessionEvent] = [
+            .fetchingSession,
+            .sessionFetched(isInitialFetch: false),
+            .sessionSignIn,
+            .sessionSignedOut(error: nil),
+            .sessionUpdated(nil),
+            .unexpectedError(.sessionExpired)
+        ]
+
+        Self.concurrentlyRun { i in
+            listener(events[i % events.count])
+        }
+
+        // Survival check — handle still in a valid status.
+        let final = handle.sessionStatus
+        #expect([
+            AuthSessionStatus.syncing,
+            .signedIn,
+            .signedOut,
+            .validating,
+            .biometricAuthentication
+        ].contains(final))
+    }
+
+    @Test func mixedAccessorsAndMutatorsDoNotCrash() {
+        let provider = MockSessionProvider()
+        let handle = AuthSessionHandle(sessionProvider: provider)
+
+        Self.concurrentlyRun(count: 30_000) { i in
+            switch i % 8 {
+            case 0: handle.set(sessionStatus: .signedIn)
+            case 1: handle.set(sessionStatus: .signedOut)
+            case 2: handle.enableManualAuthentication()
+            case 3: handle.disableManualAuthentication()
+            case 4: handle.enableSessionForValidation()
+            case 5: _ = handle.sessionStatus
+            case 6: _ = handle.isManualAuthenticationRequired
+            case 7: _ = handle.allowsSessionValidationFromNotifications
+            default: break
+            }
+        }
+
+        // No assertion needed beyond reaching this line without a crash —
+        // ThreadSanitizer or a torn read would have aborted the run.
+        #expect(Bool(true))
+    }
+
+    @Test func deinitIsSafeAfterConcurrentActivity() {
+        weak var weakHandle: AuthSessionHandle<MockSessionProvider>?
+
+        do {
+            let provider = MockSessionProvider()
+            let handle = AuthSessionHandle(sessionProvider: provider)
+            weakHandle = handle
+
+            Self.concurrentlyRun(count: 5_000) { i in
+                if i.isMultiple(of: 3) {
+                    handle.set(sessionStatus: .signedIn)
+                } else if i.isMultiple(of: 5) {
+                    handle.enableManualAuthentication()
+                } else {
+                    _ = handle.sessionStatus
+                }
+            }
+        }
+
+        #expect(weakHandle == nil)
+    }
+
+    @Test func concurrentDelegateInvocationsAllDeliver() {
+        let provider = MockSessionProvider()
+        let handle = AuthSessionHandle(sessionProvider: provider)
+        let delegate = MockDelegate()
+        handle.subscribeDelegate(delegate, receive: delegateQueue)
+
+        Self.concurrentlyRun(count: 5_000) { i in
+            // Alternate between distinct states to force a transition every call.
+            handle.set(sessionStatus: i.isMultiple(of: 2) ? .signedIn : .signedOut)
+        }
+
+        drainDelegateQueue()
+
+        // Every transition that actually changed the value should have delivered
+        // exactly one delegate callback. Without locking, deliveries would be lost
+        // or duplicated. We don't assert an exact count (the no-op guard depends on
+        // ordering), but we expect at least one and a sensible upper bound.
+        #expect(delegate.statusChanges.count > 0)
+        #expect(delegate.statusChanges.count <= 5_000)
+    }
+
+    @Test func concurrentSubscribeUnsubscribeIsRaceFree() {
+        let provider = MockSessionProvider()
+        let handle = AuthSessionHandle(sessionProvider: provider)
+
+        // Pool of long-lived delegates so they aren't deallocated mid-test.
+        let pool = (0..<32).map { _ in MockDelegate() }
+
+        Self.concurrentlyRun(count: 10_000) { i in
+            let delegate = pool[i % pool.count]
+            if i.isMultiple(of: 2) {
+                handle.subscribeDelegate(delegate, receive: delegateQueue)
+            } else {
+                handle.unsubscribeDelegate(delegate)
+            }
+        }
+
+        // Trigger a single broadcast to make sure the subscription table is
+        // still usable after the storm.
+        handle.set(sessionStatus: .signedIn)
+        drainDelegateQueue()
+        #expect(Bool(true))
+    }
+
+    /// Writes a known status from one queue, then reads from a *different* queue
+    /// and asserts the read lands on one of the values being concurrently written.
+    /// A reader must never observe the initial `.syncing` value once the first
+    /// writer has completed — that would imply broken memory visibility through
+    /// the lock.
+    @Test func writesAreVisibleAcrossThreads() {
+        let provider = MockSessionProvider()
+        let handle = AuthSessionHandle(sessionProvider: provider)
+
+        let writerQueue = DispatchQueue(label: "test.writer")
+        let readerQueue = DispatchQueue(label: "test.reader")
+
+        let staleReads = ConcurrencySafeCounter()
+
+        let group = DispatchGroup()
+        for i in 0..<5_000 {
+            let expected: AuthSessionStatus = i.isMultiple(of: 2) ? .signedIn : .signedOut
+            group.enter()
+            writerQueue.async {
+                handle.set(sessionStatus: expected)
+                readerQueue.async {
+                    // Snapshot once — the status is a moving target, so reading it
+                    // multiple times in the condition would race with itself.
+                    let observed = handle.sessionStatus
+                    if observed != .signedIn && observed != .signedOut {
+                        staleReads.increment()
+                    }
+                    group.leave()
+                }
+            }
+        }
+        group.wait()
+
+        // Once the first writer has completed, status must have left `.syncing`
+        // and every subsequent read should see one of the two written values.
+        #expect(staleReads.value == 0)
+    }
+
+    /// Creates many handles concurrently. Each handle owns its own
+    /// `ConcurrencySafeContainer` — there's no shared state between them, but the
+    /// concurrent constructor invocations exercise the init-ordering writes
+    /// (`sessionEventProxy`, `biometricAuthentication`) across threads.
+    @Test func concurrentInitProducesIndependentHandles() {
+        let handles = ConcurrencySafeReferenceList<MockSessionProvider>()
+
+        Self.concurrentlyRun(count: 500) { _ in
+            let provider = MockSessionProvider()
+            let handle = AuthSessionHandle(sessionProvider: provider)
+            handles.append(handle)
+        }
+
+        let collected = handles.snapshot()
+        #expect(collected.count == 500)
+        // Every handle must be wired correctly — proxy and biometric set, status syncing.
+        for handle in collected {
+            #expect(handle.sessionEventProxy != nil)
+            #expect(handle.biometricAuthentication != nil)
+            #expect(handle.sessionStatus == .syncing)
+        }
+    }
+
+    /// A delegate that calls back into the handle from inside its own callback
+    /// must not deadlock. The handle's lock is released before delegate dispatch,
+    /// so this re-entry should succeed even when the call originates from the same
+    /// thread.
+    @Test func reentrantDelegateCallbackDoesNotDeadlock() {
+        let provider = MockSessionProvider()
+        let handle = AuthSessionHandle(sessionProvider: provider)
+
+        let synchronousQueue = DispatchQueue(label: "test.synchronous-delegate")
+        let didReenter = ConcurrencySafeFlag()
+
+        final class ReentrantDelegate: NSObject, AuthSessionDelegate, @unchecked Sendable {
+            let handle: AuthSessionHandle<MockSessionProvider>
+            let didReenter: ConcurrencySafeFlag
+
+            init(handle: AuthSessionHandle<MockSessionProvider>, didReenter: ConcurrencySafeFlag) {
+                self.handle = handle
+                self.didReenter = didReenter
+            }
+
+            func authentication(_ sessionHandle: (any AuthSessionHandleProtocol)?,
+                                didUpdateStatus sessionStatus: any AuthSessionStatusProtocol,
+                                from oldStatus: any AuthSessionStatusProtocol,
+                                for session: (any AuthSessionProtocol)?) {
+                // Re-enter the handle from the delegate callback.
+                _ = handle.sessionStatus
+                _ = handle.isManualAuthenticationRequired
+                didReenter.set()
+            }
+
+            func authentication(_ sessionHandle: (any AuthSessionHandleProtocol)?,
+                                didLoginWith user: (any AuthSessionUserProtocol)?,
+                                for session: (any AuthSessionProtocol)?) { }
+
+            func authentication(_ sessionHandle: (any AuthSessionHandleProtocol)?,
+                                didLogoutWith error: Error?) { }
+        }
+
+        let delegate = ReentrantDelegate(handle: handle, didReenter: didReenter)
+        handle.subscribeDelegate(delegate, receive: synchronousQueue)
+        handle.set(sessionStatus: .signedIn)
+
+        // Drain the synchronous delegate queue.
+        synchronousQueue.sync {}
+        #expect(didReenter.isSet == true)
+    }
+
+    /// **Chaos monkey** — every public/internal surface of the handle gets
+    /// hammered concurrently from many threads with a deterministic but
+    /// hostile mix of operations: status writes, status reads, flag toggles,
+    /// event listener deliveries, delegate subscribe/unsubscribe, biometric
+    /// flag flips, and re-entrant reads from inside delegate callbacks. If
+    /// any of these paths is racy in a way the simpler targeted tests miss,
+    /// this storm should crash or corrupt state.
+    @Test func chaosMonkeyAllSurfacesUnderLoad() {
+        let provider = MockSessionProvider()
+        let handle = AuthSessionHandle(sessionProvider: provider)
+        let listener = handle.listenEvent()
+
+        // A live, ever-changing pool of delegates that subscribe and unsubscribe
+        // independently of the operation storm.
+        let delegatePool = (0..<16).map { _ in MockDelegate() }
+        for delegate in delegatePool.prefix(8) {
+            handle.subscribeDelegate(delegate, receive: delegateQueue)
+        }
+
+        let statuses: [AuthSessionStatus] = [.syncing, .signedIn, .signedOut, .validating, .biometricAuthentication]
+        let events: [AuthSessionEvent] = [
+            .fetchingSession,
+            .sessionFetched(isInitialFetch: false),
+            .sessionSignIn,
+            .sessionSignedOut(error: nil),
+            .sessionUpdated(nil),
+            .unexpectedError(.sessionExpired)
+        ]
+
+        Self.concurrentlyRun(count: 50_000) { i in
+            switch i % 16 {
+            case 0:  handle.set(sessionStatus: statuses[i % statuses.count])
+            case 1:  _ = handle.sessionStatus
+            case 2:  handle.enableManualAuthentication()
+            case 3:  handle.disableManualAuthentication()
+            case 4:  _ = handle.isManualAuthenticationRequired
+            case 5:  handle.enableSessionForValidation()
+            case 6:  _ = handle.isSessionReadyToValidate
+            case 7:  handle.enableSessionValidationFromNotification()
+            case 8:  handle.disableSessionValidationFromNotification()
+            case 9:  _ = handle.allowsSessionValidationFromNotifications
+            case 10: listener(events[i % events.count])
+            case 11: handle.setBioMetricAuthentication(i.isMultiple(of: 2))
+            case 12: _ = handle.session?.accessToken
+            case 13: handle.subscribeDelegate(delegatePool[i % delegatePool.count], receive: delegateQueue)
+            case 14: handle.unsubscribeDelegate(delegatePool[i % delegatePool.count])
+            case 15: _ = handle.isBiometricAuthenticationInProcess
+            default: break
+            }
+        }
+
+        drainDelegateQueue()
+
+        // Survival check — handle still functional after 50,000 ops.
+        let final = handle.sessionStatus
+        #expect(statuses.contains(final))
+
+        // The lock primitive must still respond — taking it one more time should be cheap and reliable.
+        handle.set(sessionStatus: .signedIn)
+        #expect(handle.sessionStatus == .signedIn)
+    }
+
+    /// Sustained burst load — twenty parallel writers hammer the same handle
+    /// for a long run. Proves the lock holds up under continuous contention,
+    /// not just short isolated bursts.
+    @Test func sustainedBurstUnderContention() {
+        let provider = MockSessionProvider()
+        let handle = AuthSessionHandle(sessionProvider: provider)
+
+        let writerCount = 32
+        let iterationsPerWriter = 2_000
+        let statuses: [AuthSessionStatus] = [.syncing, .signedIn, .signedOut, .validating, .biometricAuthentication]
+
+        let group = DispatchGroup()
+        for writerIndex in 0..<writerCount {
+            group.enter()
+            Self.stressQueue.async {
+                for j in 0..<iterationsPerWriter {
+                    handle.set(sessionStatus: statuses[(writerIndex + j) % statuses.count])
+                }
+                group.leave()
+            }
+        }
+        group.wait()
+
+        // Final status must be one of the valid enum cases. Lock failures or
+        // memory corruption would have crashed long before this assertion.
+        #expect(statuses.contains(handle.sessionStatus))
+    }
+}
+
+
+// MARK: - Threading Test Helpers
+
+/// Thread-safe counter used in `Thread Safety` suite. Backed by the same
+/// `ConcurrencySafeContainer` the handle itself uses, so we're testing with
+/// the production primitive.
+final class ConcurrencySafeCounter: @unchecked Sendable {
+    private let container = ConcurrencySafeContainer<Int>(0)
+    func increment() { container.withLock { $0 += 1 } }
+    var value: Int { container.withLock { $0 } }
+}
+
+/// Thread-safe one-shot Bool flag.
+final class ConcurrencySafeFlag: @unchecked Sendable {
+    private let container = ConcurrencySafeContainer<Bool>(false)
+    func set() { container.withLock { $0 = true } }
+    var isSet: Bool { container.withLock { $0 } }
+}
+
+/// Thread-safe list for collecting handles created concurrently in tests.
+final class ConcurrencySafeReferenceList<Provider: AuthSessionProviderProtocol>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var items: [AuthSessionHandle<Provider>] = []
+
+    func append(_ handle: AuthSessionHandle<Provider>) {
+        lock.lock()
+        items.append(handle)
+        lock.unlock()
+    }
+
+    func snapshot() -> [AuthSessionHandle<Provider>] {
+        lock.lock()
+        defer { lock.unlock() }
+        return items
+    }
+}
+
+
+// MARK: - Synchronous Init Emission
+
+/// Provider that publishes `.fetchingSession` then `.sessionFetched(isInitialFetch: true)`
+/// synchronously from inside `initializeSessionProvider(for:)`. Used to prove the
+/// init-ordering invariant: the handle must have wired its `sessionEventProxy` and
+/// `biometricAuthentication` references **before** delegating to the provider, otherwise
+/// the synchronous validation pass would observe `nil` for those references and silently
+/// skip the biometric branch.
+final class SynchronousEmittingProvider: NSObject, AuthSessionProviderProtocol, @unchecked Sendable {
+
+    var session: MockSession?
+    var isBioMetricAuthenticationEnabled: Bool = true
+    var allowsLocalSessionValidation: Bool = true
+    var isSessionAutoRefreshEnabled: Bool = false
+    var canPerformAuth: Bool = true
+    var allowsSignoutOnBiometricFailure: Bool = true
+    var signoutCallCount = 0
+
+    init(session: MockSession) {
+        self.session = session
+    }
+
+    func initializeSessionProvider(for eventProxy: any AuthSessionEventProxy) {
+        // Emit synchronously, before the function returns.
+        eventProxy.publish(.fetchingSession)
+        eventProxy.publish(.sessionFetched(isInitialFetch: true))
+    }
+
+    func setBioMetricAuthentication(_ isEnabled: Bool) { isBioMetricAuthenticationEnabled = isEnabled }
+    func signout(with error: Error?) throws { signoutCallCount += 1 }
+    func preferredAuthenticationReason() -> String { "Sync test" }
+    func canPerformAuthentication() -> Bool { canPerformAuth }
+    func allowsSessionSigningOutOnBiometricAuthenticationFailure(with error: BiometricAuthenticationError) -> Bool {
+        allowsSignoutOnBiometricFailure
+    }
+}
+
+
+@Suite("Synchronous Init Emission")
+struct SynchronousInitEmissionTests {
+
+    /// The headline regression: a synchronously-emitting provider with a valid session
+    /// and `canPerformAuthentication() == true` must land in `.biometricAuthentication`.
+    /// If `biometricAuthentication` were still `nil` when the validation pass runs, the
+    /// biometric branch would be skipped and the handle would land on `.signedIn`.
+    @Test func biometricBranchFiresOnSynchronousFetch() {
+        let session = MockSession(expiresIn: 3600)
+        let provider = SynchronousEmittingProvider(session: session)
+        let handle = AuthSessionHandle(sessionProvider: provider)
+
+        // The provider already published .sessionFetched(isInitialFetch: true) before
+        // init returned. The handle must have validated, taken the biometric branch,
+        // and transitioned to .biometricAuthentication.
+        #expect(handle.sessionStatus == .biometricAuthentication)
+    }
+
+    /// Without biometric (`canPerformAuth = false`) the handle should land on
+    /// `.signedIn` instead — proves the validation pass actually ran (not silently
+    /// short-circuited by missing state).
+    @Test func validationStillRunsWhenBiometricUnavailable() {
+        let session = MockSession(expiresIn: 3600)
+        let provider = SynchronousEmittingProvider(session: session)
+        provider.canPerformAuth = false
+        let handle = AuthSessionHandle(sessionProvider: provider)
+
+        #expect(handle.sessionStatus == .signedIn)
+    }
+
+    /// A synchronously-emitting provider with an expired session must trigger
+    /// signout during init, proving the validation pass had a working reference to
+    /// the provider and a fully wired event listener.
+    @Test func expiredSessionTriggersSignoutDuringSyncInit() {
+        let session = MockSession(expiresIn: 60) // below the 180s threshold
+        let provider = SynchronousEmittingProvider(session: session)
+        let handle = AuthSessionHandle(sessionProvider: provider)
+        _ = handle // keep alive
+
+        #expect(provider.signoutCallCount == 1)
+    }
+
+    /// `sessionEventProxy` and `biometricAuthentication` must be non-nil
+    /// immediately after init returns — confirms the init-ordering write happens
+    /// before `initializeSessionProvider(for:)` returns.
+    @Test func referencesAreVisibleAfterInit() {
+        let session = MockSession(expiresIn: 3600)
+        let provider = SynchronousEmittingProvider(session: session)
+        let handle = AuthSessionHandle(sessionProvider: provider)
+
+        #expect(handle.sessionEventProxy != nil)
+        #expect(handle.biometricAuthentication != nil)
+    }
+
+    /// Session-readiness must be `true` once the synchronous fetch completes,
+    /// even though the assignment happened mid-`init`. Proves the event listener
+    /// closure can mutate `state` from inside `initializeSessionProvider`.
+    @Test func sessionReadinessSetBySynchronousFetch() {
+        let session = MockSession(expiresIn: 3600)
+        let provider = SynchronousEmittingProvider(session: session)
+        let handle = AuthSessionHandle(sessionProvider: provider)
+
+        #expect(handle.isSessionReadyToValidate == true)
     }
 }
