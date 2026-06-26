@@ -4,11 +4,11 @@ A Swift package that manages the **lifecycle of an authentication session** on A
 
 `AuthSessionKit` is intentionally split into two products so that feature modules can depend only on the public surface (protocols, enums, errors) without pulling in the implementation. This keeps build times low and makes the package easy to mock in tests.
 
-- **Platforms**: iOS 14+, macOS 10.14+
+- **Platforms**: iOS 14+, macOS 10.15+
 - **Swift**: 6.3 (language mode `.v6`, full strict concurrency)
 - **Dependencies**:
   - [`BiometricAuthKit`](https://github.com/kaVish2214/BiometricAuthKit) — `BiometricAuth`, `BiometricAuthInterface`
-  - [`UtilityKit`](https://github.com/kaVish2214/UtilityKit) — `MultiCastDelegate`
+  - [`UtilityKit`](https://github.com/kaVish2214/UtilityKit) — `MultiCastDelegate`, `SwiftConcurrency`
 
 ---
 
@@ -541,3 +541,4 @@ Suites currently covered:
 | --- | --- |
 | `BiometricAuthKit` | `BiometricAuthManager`, `BiometricAuthentication`, `BiometricAuthenticationDelegator`, `BiometricAuthenticationRequestor`, `BiometricAuthenticationError` — the Face ID / Touch ID layer the handle leans on. |
 | `UtilityKit` (`MultiCastDelegate`) | `MultiCastDelegate`, `DelegateMultiCasting`, `DelegateSubscription`, `DelegateSubscriptionHandle` — the weak-multicast infrastructure used by `AuthSessionHandleProtocol`. |
+| `UtilityKit` (`SwiftConcurrency`) | `ConcurrencyContainerProtocol`, `ConcurrencySafeContainer` — the OS-adaptive lock (`Mutex` → `OSAllocatedUnfairLock` → `NSLock`) that protects `AuthSessionHandle`'s mutable `State` struct. |
