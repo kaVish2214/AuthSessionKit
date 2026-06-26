@@ -3,6 +3,15 @@
 
 import PackageDescription
 
+/// swiftSettings
+let swiftSettings: [SwiftSetting] = [
+    .unsafeFlags([
+        "-Xfrontend", "-warn-long-function-bodies=100",
+        "-Xfrontend", "-warn-long-expression-type-checking=100"
+    ])
+]
+
+/// Package
 let package = Package(
     name: "AuthSessionKit",
     platforms: [
@@ -43,7 +52,8 @@ let package = Package(
                 .product(name: "MultiCastDelegate", package: "UtilityKit"),
                 .product(name: "SwiftConcurrency", package: "UtilityKit")
             ],
-            path: "Sources/AuthSession"
+            path: "Sources/AuthSession",
+            swiftSettings: swiftSettings
         ),
         .testTarget(
             name: "AuthSessionKitTests",
