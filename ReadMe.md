@@ -491,6 +491,157 @@ The host that owns the handle is responsible for publishing into the proxy (typi
 }
 ```
 
+### 6. Real-world example: wiring a Supabase provider
+
+The minimal example above stays inside the package surface. Here's how the same conformance looks when the provider sits in front of a real backend (Supabase shown). It illustrates the patterns most apps actually need: a domain-specific protocol refinement, lock-protected session storage, `weak` event-proxy retention, async wire-up, and translating provider-native events into `AuthSessionEvent`s.
+
+**Domain protocol** — refine `AuthSessionProviderProtocol` to add backend-specific affordances. Constrain the associated `AuthSession` to your concrete session type so callers can use the strong type, not the existential.
+
+```swift
+import AuthSessionInterface
+
+public protocol SupabaseSessionProviderProtocol: AuthSessionProviderProtocol
+    where AuthSession: SupabaseSessionProtocol {
+
+    var supabaseClient: SupabaseClient { get }
+
+    func signInAnonymously() async throws
+}
+```
+
+**Conformer** — implements `AuthSessionProviderProtocol` plus the new requirements. Notable patterns inside:
+
+- **Lock-protected session** with `ConcurrencySafeContainer<State>` (same primitive `AuthSessionHandle` uses internally).
+- **`nonisolated(unsafe) weak var eventProxy`** — the handle hands ownership of the proxy at init time; the provider keeps it weak so it can publish later without retaining the handle.
+- **`isSessionAutoRefreshEnabled = true` + `allowsLocalSessionValidation = false`** — Supabase refreshes tokens itself, so the handle doesn't need to run local expiry checks.
+- **Auth-state listener bridges provider events to `AuthSessionEvent`** — `signedIn` → `.sessionSignIn`, `tokenRefreshed` → `.sessionFetched(isInitialFetch: false)`, etc.
+- **Biometric flag persisted in `UserDefaults`** — survives launches.
+
+```swift
+import AuthSessionInterface
+import BiometricAuthInterface
+import Supabase
+import SwiftConcurrency   // UtilityKit's SwiftConcurrency product
+
+final class SupabaseSessionProvider: NSObject, SupabaseSessionProviderProtocol {
+
+    // MARK: Lock-protected mutable state
+
+    private struct State: Sendable {
+        var session: Session?
+    }
+
+    private let state: any ConcurrencyContainerProtocol<State> =
+        ConcurrencySafeContainer(.init())
+
+    var session: Session? { state.withLock { $0.session } }
+
+    // MARK: Write-once-during-init references
+
+    private(set) nonisolated(unsafe) weak var eventProxy: (any AuthSessionEventProxy)?
+    private nonisolated(unsafe) var authStateListener: (any AuthStateChangeListenerRegistration)?
+
+    // MARK: Domain-specific
+
+    let supabaseClient: SupabaseClient = .init(/* … */)
+
+    // MARK: Provider policy (override the protocol defaults)
+
+    var allowsLocalSessionValidation: Bool { false }   // Supabase refreshes for us
+    var isSessionAutoRefreshEnabled: Bool { true }
+
+    // MARK: Biometric persistence
+
+    private(set) var isBioMetricAuthenticationEnabled: Bool {
+        get { UserDefaults.standard.bool(forKey: "isBiometricAuthEnabled") }
+        set { UserDefaults.standard.set(newValue, forKey: "isBiometricAuthEnabled") }
+    }
+
+    func setBioMetricAuthentication(_ isEnabled: Bool) {
+        isBioMetricAuthenticationEnabled = isEnabled
+    }
+
+    // MARK: Provider lifecycle
+
+    func initializeSessionProvider(for eventProxy: any AuthSessionEventProxy) {
+        self.eventProxy = eventProxy
+        eventProxy.publish(.fetchingSession)
+
+        Task { [weak self] in
+            self?.authStateListener = await self?.supabaseClient.auth.onAuthStateChange {
+                [weak self] event, session in
+                guard let self else { return }
+                self.state.withLock { $0.session = session }
+
+                switch event {
+                case .initialSession:
+                    self.eventProxy?.publish(.sessionFetched(isInitialFetch: true))
+                case .signedIn:
+                    self.eventProxy?.publish(.sessionSignIn)
+                case .signedOut:
+                    self.eventProxy?.publish(.sessionSignedOut(error: nil))
+                case .tokenRefreshed:
+                    self.eventProxy?.publish(.sessionFetched(isInitialFetch: false))
+                case .userUpdated:
+                    self.eventProxy?.publish(.sessionUpdated(session))
+                default:
+                    break
+                }
+            }
+        }
+    }
+
+    deinit { authStateListener?.remove() }
+
+    // MARK: Sign-in / sign-out
+
+    func signInAnonymously() async throws {
+        try await supabaseClient.auth.signInAnonymously()
+    }
+
+    func signout(with error: Error?) throws {
+        // `signout` is sync by protocol; hop into a Task and publish failures through the proxy.
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                try await self.supabaseClient.auth.signOut()
+            } catch {
+                self.eventProxy?.publish(.unexpectedError(.signingOutFailure(error: error)))
+            }
+        }
+    }
+
+    // MARK: Biometric requirements
+
+    func preferredAuthenticationReason() -> String {
+        "Authenticate with your Supabase account"
+    }
+
+    func canPerformAuthentication() -> Bool {
+        isBioMetricAuthenticationEnabled
+    }
+
+    func allowsSessionSigningOutOnBiometricAuthenticationFailure(
+        with error: BiometricAuthenticationError
+    ) -> Bool {
+        // Map biometric error policy to your UX — e.g., keep the session alive when the user
+        // cancels the prompt themselves so they can retry without re-authenticating.
+        if case .canceledByUser = error { return false }
+        return true
+    }
+}
+```
+
+**Key takeaways from this pattern:**
+
+| Concern | What this example does |
+| --- | --- |
+| Provider-side state mutation under concurrency | Re-uses `ConcurrencySafeContainer` from `UtilityKit/SwiftConcurrency` — the same primitive the handle uses, so all of the provider's state is thread-safe by construction. |
+| Avoiding a retain cycle with the handle | `eventProxy` is `weak`; the handle owns the proxy, the provider just borrows a reference to publish through. |
+| Async backend, sync protocol method (`signout(with:)`) | Wrap the call in a `Task` and route failures back through the proxy as `.unexpectedError(.signingOutFailure(error:))` so they fan out to delegates. |
+| Mapping backend events to `AuthSessionEvent` | A single `switch` inside the auth-state listener translates Supabase's vocabulary to the package's. The handle's state machine takes it from there. |
+| Skipping local validation when the backend auto-refreshes | Override `allowsLocalSessionValidation` to `false` and `isSessionAutoRefreshEnabled` to `true` so the handle defers to the provider's refresh cycle. |
+
 ---
 
 ## Concurrency
