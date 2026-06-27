@@ -1,5 +1,10 @@
 # AuthSessionKit
 
+[![Swift 6.3](https://img.shields.io/badge/Swift-6.3-F05138?logo=swift&logoColor=white)](https://swift.org)
+[![Platforms](https://img.shields.io/badge/Platforms-iOS%2014%2B%20%7C%20macOS%2010.15%2B-blue)](https://developer.apple.com)
+[![SwiftPM](https://img.shields.io/badge/SwiftPM-compatible-brightgreen?logo=swift&logoColor=white)](https://www.swift.org/package-manager/)
+[![License: MPL 2.0](https://img.shields.io/badge/License-MPL%202.0-orange)](LICENSE)
+
 A Swift package that manages the **lifecycle of an authentication session** on Apple platforms — fetching, validating, refreshing, biometric gating, sign-in / sign-out, and broadcasting state changes to multiple observers.
 
 `AuthSessionKit` is intentionally split into two products so that feature modules can depend only on the public surface (protocols, enums, errors) without pulling in the implementation. This keeps build times low and makes the package easy to mock in tests.
@@ -681,7 +686,7 @@ Suites currently covered:
 | `AuthSessionDelegateEvent` | Case creation and associated-value extraction for the outbound enum. |
 | `AuthSessionDelegateEventPublisher` | `publish(_:for:)` contract — event storage, handle identity, order preservation. |
 | `AuthSessionDelegateEventProxy` | Closure-based `init(eventListening:)` contract — main-actor delivery and payload fidelity. |
-| `Thread Safety` | Aggressive stress harness — 14 tests driving the lock-protected state across a concurrent dispatch queue. Peak loads: 64,000-op sustained burst from 32 parallel writers, 50,000-op chaos-monkey hammering every public/internal surface (status writes, reads, flag toggles, event listener, delegate subscribe/unsubscribe, biometric flag, re-entrant reads), 30,000-op mixed accessor/mutator fan, 10,000-op subscribe/unsubscribe storm against a 32-delegate pool, and 500 concurrent handle constructions. The suite is `.serialized` so each test gets the full thread pool to itself, then everything proves the OS-adaptive `ConcurrencySafeContainer` makes the handle safe under arbitrary multi-threaded use. |
+| `Thread Safety` | Aggressive stress harness — 14 tests driving the lock-protected state across a concurrent dispatch queue. Peak loads: 64,000-op sustained burst from 32 parallel writers, 50,000-op chaos-monkey hammering every state surface (status writes, reads, flag toggles, event listener, biometric flag, delegate fan-out under contention), 30,000-op mixed accessor/mutator fan, a 10,000-op subscribe/unsubscribe storm against a 32-delegate pool (exercised in isolation), and 500 concurrent handle constructions. The suite is `.serialized` so each test gets the full thread pool to itself, then everything proves the OS-adaptive `ConcurrencySafeContainer` makes the handle safe under arbitrary multi-threaded use. |
 | `Synchronous Init Emission` | Regression for the init-ordering invariant. Uses a provider that publishes `.fetchingSession` and `.sessionFetched(isInitialFetch: true)` synchronously from inside `initializeSessionProvider(for:)`. Asserts the biometric branch fires (proving `biometricAuthentication` is visible during the synchronous validation pass), that `signout` is invoked on an expired session, and that `sessionEventProxy` / `biometricAuthentication` references and the `isSessionReadyToValidate` flag are all visible after init returns. |
 
 ---
@@ -693,3 +698,20 @@ Suites currently covered:
 | `BiometricAuthKit` | `BiometricAuthManager`, `BiometricAuthentication`, `BiometricAuthenticationDelegator`, `BiometricAuthenticationRequestor`, `BiometricAuthenticationError` — the Face ID / Touch ID layer the handle leans on. |
 | `UtilityKit` (`MultiCastDelegate`) | `MultiCastDelegate`, `DelegateMultiCasting`, `DelegateSubscription`, `DelegateSubscriptionHandle` — the weak-multicast infrastructure used by `AuthSessionHandleProtocol`. |
 | `UtilityKit` (`SwiftConcurrency`) | `ConcurrencyContainerProtocol`, `ConcurrencySafeContainer` — the OS-adaptive lock (`Mutex` → `OSAllocatedUnfairLock` → `NSLock`) that protects `AuthSessionHandle`'s mutable `State` struct. |
+
+---
+
+## Contributing & Community
+
+- **[Contributing Guide](CONTRIBUTING.md)** — build, coding standards, source headers, and the pull-request process.
+- **[Code of Conduct](CODE_OF_CONDUCT.md)** — Contributor Covenant 2.1.
+- **[Security Policy](SECURITY.md)** — how to report a vulnerability privately (contact: [92spatter.prose@icloud.com](mailto:92spatter.prose@icloud.com)).
+- **[Changelog](CHANGELOG.md)** — notable changes per release.
+
+---
+
+## License
+
+Released under the [Mozilla Public License 2.0](LICENSE). You may use this package in private and commercial applications. If you modify and distribute files from this package, those modified files must remain available under the MPL-2.0.
+
+Copyright © 2026 kaVi Gevariya (@kaVish2214).
