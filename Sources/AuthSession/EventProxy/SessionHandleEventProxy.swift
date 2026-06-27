@@ -1,9 +1,8 @@
-//
-//  SessionHandleEventProxy.swift
-//  AuthSessionKit
-//
-//  Created by kavi gevariya on 25/04/26.
-//
+// Copyright (c) 2026 kaVi Gevariya (@kaVish2214)
+// SPDX-License-Identifier: MPL-2.0
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import Foundation
 import AuthSessionInterface
@@ -17,24 +16,26 @@ import BiometricAuthInterface
 /// ``BiometricAuthManager`` calls the ``BiometricAuthenticationDelegator`` methods
 /// for authentication results — both are forwarded to the handle via closures
 /// and the ``SessionBiometricEventProxy``.
-final class SessionHandleEventProxy: NSObject, AuthSessionEventProxy, @unchecked Sendable {
-
+final class SessionHandleEventProxy: AuthSessionEventProxy {
+    
     /// The closure that forwards session events to the handle.
     private let eventListening: @Sendable (AuthSessionEvent) -> Void
 
     /// A weak reference to the handle for biometric result forwarding.
-    private weak var biometricEventProxy: (any SessionBiometricEventProxy)?
+    private weak let biometricEventProxy: (any SessionBiometricEventProxy)?
 
-    init(eventListening: @escaping @Sendable (AuthSessionEvent) -> Void) {
+    /// Init with biometricEventProxy
+    required init(eventListening: @escaping @Sendable (AuthSessionEvent) -> Void, biometricEventProxy: any SessionBiometricEventProxy) {
         self.eventListening = eventListening
-        super.init()
-    }
-
-    convenience init(eventListening: @escaping @Sendable (AuthSessionEvent) -> Void, biometricEventProxy: any SessionBiometricEventProxy) {
-        self.init(eventListening: eventListening)
         self.biometricEventProxy = biometricEventProxy
     }
-
+    
+    /// init with only eventListening
+    init(eventListening: @escaping @Sendable (AuthSessionInterface.AuthSessionEvent) -> Void) {
+        self.biometricEventProxy = nil
+        self.eventListening = eventListening
+    }
+    
     /// Forwards a session event to the handle's event listener closure.
     func publish(_ event: AuthSessionEvent, for sessionProvider: (any AuthSessionProviderProtocol)?) {
         eventListening(event)
