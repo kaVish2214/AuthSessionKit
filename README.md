@@ -1,7 +1,7 @@
 # AuthSessionKit
 
 [![Swift 6.3](https://img.shields.io/badge/Swift-6.3-F05138?logo=swift&logoColor=white)](https://swift.org)
-[![Platforms](https://img.shields.io/badge/Platforms-iOS%2014%2B%20%7C%20macOS%2010.15%2B-blue)](https://developer.apple.com)
+[![Platforms](https://img.shields.io/badge/Platforms-iOS%2014%2B%20%7C%20macOS%2010.15%2B%20%7C%20Mac%20Catalyst%2014%2B-blue)](https://developer.apple.com)
 [![SwiftPM](https://img.shields.io/badge/SwiftPM-compatible-brightgreen?logo=swift&logoColor=white)](https://www.swift.org/package-manager/)
 [![License: MPL 2.0](https://img.shields.io/badge/License-MPL%202.0-orange)](LICENSE)
 
@@ -9,7 +9,7 @@ A Swift package that manages the **lifecycle of an authentication session** on A
 
 `AuthSessionKit` is intentionally split into two products so that feature modules can depend only on the public surface (protocols, enums, errors) without pulling in the implementation. This keeps build times low and makes the package easy to mock in tests.
 
-- **Platforms**: iOS 14+, macOS 10.15+
+- **Platforms**: iOS 14+, macOS 10.15+, Mac Catalyst 14+
 - **Swift**: 6.3 (language mode `.v6`, full strict concurrency)
 - **Dependencies**:
   - [`BiometricAuthKit`](https://github.com/kaVish2214/BiometricAuthKit) — `BiometricAuth`, `BiometricAuthInterface`

@@ -1,5 +1,5 @@
 {
-  "originHash" : "df0c39524c71a75c06a5864849bf48f9e7608d9e3a80fe1e9081ed479ef8f3ac",
+  "originHash" : "5176622fd59deab381684716c7f4bbc592a39d5c14e2c80725fff33128c24aa4",
   "pins" : [
     {
       "identity" : "biometricauthkit",
@@ -24,8 +24,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/kaVish2214/UtilityKit",
       "state" : {
-        "revision" : "e9d46d5b65c362f0f04dd36c0a4f77e377d8335f",
-        "version" : "0.1.0"
+        "revision" : "56eaa53359f8d3ded164625f82c2c66e7810c2b0",
+        "version" : "0.1.1"
       }
     }
   ],

@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-07-07
+
+### Added
+- **Mac Catalyst support.** The package now declares `.macCatalyst(.v14)`
+  alongside iOS 14+ and macOS 10.15+.
+
+### Changed
+- **`UtilityKit` updated to 0.1.1.**
+
 ## [0.1.0] - 2026-06-27
 
 Initial public release. AuthSessionKit provides a thread-safe, protocol-first
@@ -34,5 +43,6 @@ foundation for managing authentication sessions on Apple platforms.
   handling).
 - Licensed under the Mozilla Public License 2.0.
 
-[Unreleased]: https://github.com/kaVish2214/AuthSessionKit/compare/0.1.0...HEAD
+[Unreleased]: https://github.com/kaVish2214/AuthSessionKit/compare/0.1.1...HEAD
+[0.1.1]: https://github.com/kaVish2214/AuthSessionKit/compare/0.1.0...0.1.1
 [0.1.0]: https://github.com/kaVish2214/AuthSessionKit/releases/tag/0.1.0

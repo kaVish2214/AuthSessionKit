@@ -20,7 +20,8 @@ let package = Package(
     name: "AuthSessionKit",
     platforms: [
         .iOS(.v14),
-        .macOS(.v10_15)
+        .macOS(.v10_15),
+        .macCatalyst(.v14)
     ],
     products: [
         // Products define the executables and libraries a package produces, making them visible to other packages.
