@@ -1,0 +1,274 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 480"
+     font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif"
+     role="img"
+     aria-label="AuthSessionKit: an authentication session lifecycle for Apple platforms. Pluggable providers (Firebase, Supabase, or your own) publish events into a thread-safe handle that fetches, validates, gates on Face ID / Touch ID, and fans state out to multicast observers. Swift 6, iOS 14+, macOS and Mac Catalyst.">
+  <title>AuthSessionKit — authentication session lifecycle</title>
+
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0A1A34"/>
+      <stop offset="1" stop-color="#050F1D"/>
+    </linearGradient>
+    <linearGradient id="brand" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#5B8CFF"/>
+      <stop offset="0.55" stop-color="#3ECF8E"/>
+      <stop offset="1" stop-color="#A78BFA"/>
+    </linearGradient>
+    <linearGradient id="supa" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3ECF8E"/>
+      <stop offset="1" stop-color="#249361"/>
+    </linearGradient>
+    <linearGradient id="fire" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFA000"/>
+      <stop offset="1" stop-color="#FFC400"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.6">
+      <stop offset="0" stop-color="#193668" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="#050F1D" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="soft" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000000" flood-opacity="0.40"/>
+    </filter>
+    <filter id="spark" x="-120%" y="-120%" width="340%" height="340%">
+      <feGaussianBlur stdDeviation="2.4" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <clipPath id="screen"><rect x="376" y="128" width="168" height="256" rx="12"/></clipPath>
+  </defs>
+
+  <rect x="1" y="1" width="898" height="478" rx="24" fill="url(#bg)" stroke="#173157" stroke-width="1.5"/>
+  <ellipse cx="460" cy="252" rx="340" ry="230" fill="url(#glow)"/>
+
+  <!-- ===== brand ===== -->
+  <g transform="translate(44,38)">
+    <path d="M16 1 L29 6 L29 17 C29 25 22 29.5 16 32 C10 29.5 3 25 3 17 L3 6 Z"
+          fill="#0C2247" stroke="url(#brand)" stroke-width="2.3"/>
+    <circle cx="16" cy="15" r="3.1" fill="#5B8CFF"/>
+    <path d="M14.4 17 L17.6 17 L18.6 24 L13.4 24 Z" fill="#5B8CFF"/>
+    <text x="48" y="14" font-size="22" font-weight="700" fill="#EAF1FB">AuthSessionKit</text>
+    <text x="48" y="34" font-size="12.5" fill="#8AA0C2">Authentication session lifecycle — biometric &amp; thread-safe</text>
+  </g>
+
+  <!-- ===== platform chips (top-right) ===== -->
+  <g font-size="11.5" fill="#C3D2E8" text-anchor="middle">
+    <g transform="translate(566,38)"><rect width="60" height="24" rx="12" fill="#102647" stroke="#284d84"/><text x="30" y="16">Swift 6</text></g>
+    <g transform="translate(634,38)"><rect width="62" height="24" rx="12" fill="#102647" stroke="#284d84"/><text x="31" y="16">iOS 14+</text></g>
+    <g transform="translate(704,38)"><rect width="58" height="24" rx="12" fill="#102647" stroke="#284d84"/><text x="29" y="16">macOS</text></g>
+    <g transform="translate(770,38)"><rect width="86" height="24" rx="12" fill="#102647" stroke="#284d84"/><text x="43" y="16">Mac Catalyst</text></g>
+  </g>
+
+  <!-- ===== provider node (cycles Firebase / Supabase / Custom) ===== -->
+  <text x="130" y="206" font-size="11" fill="#8AA0C2" text-anchor="middle">Provider</text>
+  <rect x="44" y="214" width="172" height="86" rx="16" fill="#0C2247" stroke="#274d89" filter="url(#soft)"/>
+
+  <!-- logos crossfade -->
+  <g transform="translate(80,242)">
+    <!-- Firebase flame -->
+    <g>
+      <animate attributeName="opacity" dur="6s" repeatCount="indefinite"
+               keyTimes="0;0.28;0.33;0.95;1" values="1;1;0;0;1"/>
+      <!-- front face -->
+      <path d="M15 2.5 C18.5 8 22 12 22 17 C22 21.8 18.5 25.6 14 26 C12.5 26 11 25.6 9.6 24.8 L7.8 17.6 C7.2 17 7.4 16 8.2 15.6 L10.5 13 C11.8 9.5 13.2 6 15 2.5 Z" fill="url(#fire)"/>
+      <!-- shaded side face along the fold -->
+      <path d="M15 2.5 C13.2 6 11.8 9.5 10.5 13 L8.2 15.6 C7.4 16 7.2 17 7.8 17.6 L9.6 24.8 C11 25.6 12.5 26 14 26 Z" fill="#F57C00"/>
+      <!-- hot highlight at the base -->
+      <path d="M14 26 C17.5 25.6 20.4 23 21.4 19.5 L15.5 18 Z" fill="#FFE082"/>
+    </g>
+    <!-- Supabase bolt -->
+    <g opacity="0">
+      <animate attributeName="opacity" dur="6s" repeatCount="indefinite"
+               keyTimes="0;0.28;0.33;0.61;0.66;1" values="0;0;1;1;0;0"/>
+      <path d="M15 2 L6 15.5 L13 15.5 L12 26 L22 11 L15 11 Z" fill="url(#supa)"/>
+    </g>
+    <!-- Custom backend (database) -->
+    <g opacity="0">
+      <animate attributeName="opacity" dur="6s" repeatCount="indefinite"
+               keyTimes="0;0.61;0.66;0.95;1" values="0;0;1;1;0"/>
+      <path d="M5 7 L5 21 C5 23.2 9 24.5 14 24.5 C19 24.5 23 23.2 23 21 L23 7 Z" fill="#5c7599"/>
+      <ellipse cx="14" cy="7" rx="9" ry="3.6" fill="#C3D2E8"/>
+      <ellipse cx="14" cy="14" rx="9" ry="3.6" fill="none" stroke="#98acc9" stroke-width="1.4"/>
+    </g>
+  </g>
+
+  <!-- provider name crossfade -->
+  <g font-size="14" font-weight="600" text-anchor="middle">
+    <text x="140" y="261" fill="#FFB74D">Firebase
+      <animate attributeName="opacity" dur="6s" repeatCount="indefinite" keyTimes="0;0.28;0.33;0.95;1" values="1;1;0;0;1"/>
+    </text>
+    <text x="140" y="261" fill="#3ECF8E" opacity="0">Supabase
+      <animate attributeName="opacity" dur="6s" repeatCount="indefinite" keyTimes="0;0.28;0.33;0.61;0.66;1" values="0;0;1;1;0;0"/>
+    </text>
+    <text x="140" y="261" fill="#C3D2E8" opacity="0">Custom
+      <animate attributeName="opacity" dur="6s" repeatCount="indefinite" keyTimes="0;0.61;0.66;0.95;1" values="0;0;1;1;0"/>
+    </text>
+  </g>
+  <text x="130" y="286" font-size="9" fill="#8AA0C2" text-anchor="middle">AuthSessionProviderProtocol</text>
+
+  <!-- ===== inbound event wire (provider -> handle) ===== -->
+  <line x1="216" y1="256" x2="360" y2="256" stroke="#274d89" stroke-width="2"/>
+  <text x="288" y="247" font-size="9" fill="#6E86AC" text-anchor="middle">AuthSessionEvent</text>
+  <g fill="#5B8CFF" filter="url(#spark)">
+    <circle cy="256" r="4">
+      <animate attributeName="cx" values="216;360" dur="1.8s" repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.6 1"/>
+      <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.8;1" dur="1.8s" repeatCount="indefinite"/>
+    </circle>
+    <circle cy="256" r="4">
+      <animate attributeName="cx" values="216;360" dur="1.8s" begin="0.6s" repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.6 1"/>
+      <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.8;1" dur="1.8s" begin="0.6s" repeatCount="indefinite"/>
+    </circle>
+    <circle cy="256" r="4">
+      <animate attributeName="cx" values="216;360" dur="1.8s" begin="1.2s" repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.6 1"/>
+      <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.8;1" dur="1.8s" begin="1.2s" repeatCount="indefinite"/>
+    </circle>
+  </g>
+
+  <!-- ===== device (AuthSessionHandle) ===== -->
+  <rect x="360" y="112" width="200" height="288" rx="30" fill="#0C2247" stroke="#274d89" stroke-width="2" filter="url(#soft)"/>
+  <rect x="376" y="128" width="168" height="256" rx="12" fill="#071731"/>
+  <rect x="436" y="118" width="48" height="6" rx="3" fill="#274d89"/>
+
+  <g clip-path="url(#screen)">
+    <rect x="376" y="128" width="168" height="256" fill="#071731"/>
+    <text x="392" y="150" font-size="9.5" fill="#61789B">9:41</text>
+
+    <!-- PHASE 1 — fetching -->
+    <g opacity="0">
+      <animate attributeName="opacity" dur="16s" repeatCount="indefinite" keyTimes="0;0.22;0.25;1" values="1;1;0;0"/>
+      <g>
+        <animateTransform attributeName="transform" type="translate" dur="16s" repeatCount="indefinite"
+                          calcMode="spline" keyTimes="0;0.04;0.24;0.25;1"
+                          keySplines="0.34 0 0.2 1;0 0 1 1;0.4 0 0.2 1;0 0 1 1"
+                          values="0,12;0,0;0,0;0,12;0,12"/>
+        <text x="460" y="184" text-anchor="middle" font-size="14" font-weight="700" fill="#EAF1FB">Fetching session</text>
+        <g transform="translate(460,252)">
+          <circle r="20" fill="none" stroke="#12305C" stroke-width="4"/>
+          <path d="M0 -20 A20 20 0 0 1 17 -10" fill="none" stroke="#5B8CFF" stroke-width="4" stroke-linecap="round">
+            <animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="1s" repeatCount="indefinite"/>
+          </path>
+        </g>
+        <text x="460" y="356" text-anchor="middle" font-size="10" fill="#8AA0C2">.fetchingSession → .syncing</text>
+      </g>
+    </g>
+
+    <!-- PHASE 2 — validating -->
+    <g opacity="0">
+      <animate attributeName="opacity" dur="16s" repeatCount="indefinite" keyTimes="0;0.25;0.27;0.47;0.5;1" values="0;0;1;1;0;0"/>
+      <g>
+        <animateTransform attributeName="transform" type="translate" dur="16s" repeatCount="indefinite"
+                          calcMode="spline" keyTimes="0;0.27;0.31;0.47;0.5;1"
+                          keySplines="0 0 1 1;0.34 0 0.2 1;0 0 1 1;0.4 0 0.2 1;0 0 1 1"
+                          values="0,12;0,12;0,0;0,0;0,12;0,12"/>
+        <text x="460" y="184" text-anchor="middle" font-size="14" font-weight="700" fill="#EAF1FB">Validating</text>
+        <rect x="392" y="212" width="136" height="70" rx="10" fill="#0f2a52" stroke="#274d89"/>
+        <text x="406" y="234" font-size="10.5" fill="#9DBAF0">access token</text>
+        <text x="406" y="250" font-size="9" fill="#61789B">expires in</text>
+        <rect x="406" y="258" width="108" height="7" rx="3.5" fill="#22375e"/>
+        <rect x="406" y="258" width="108" height="7" rx="3.5" fill="#F0B429">
+          <animate attributeName="width" dur="16s" repeatCount="indefinite" calcMode="spline"
+                   keyTimes="0;0.27;0.46;0.5;1" keySplines="0 0 1 1;0.4 0 0.2 1;0 0 1 1;0 0 1 1"
+                   values="108;108;30;30;30"/>
+        </rect>
+        <text x="460" y="356" text-anchor="middle" font-size="10" fill="#8AA0C2">local expiry check · 120s buffer</text>
+      </g>
+    </g>
+
+    <!-- PHASE 3 — biometric -->
+    <g opacity="0">
+      <animate attributeName="opacity" dur="16s" repeatCount="indefinite" keyTimes="0;0.5;0.52;0.72;0.75;1" values="0;0;1;1;0;0"/>
+      <g>
+        <animateTransform attributeName="transform" type="translate" dur="16s" repeatCount="indefinite"
+                          calcMode="spline" keyTimes="0;0.52;0.56;0.72;0.75;1"
+                          keySplines="0 0 1 1;0.34 0 0.2 1;0 0 1 1;0.4 0 0.2 1;0 0 1 1"
+                          values="0,12;0,12;0,0;0,0;0,12;0,12"/>
+        <text x="460" y="184" text-anchor="middle" font-size="14" font-weight="700" fill="#EAF1FB">Face ID</text>
+        <g stroke="#A78BFA" stroke-width="2.4" fill="none" stroke-linecap="round">
+          <!-- corner brackets -->
+          <path d="M424 224 L424 216 L432 216"/>
+          <path d="M488 216 L496 216 L496 224"/>
+          <path d="M424 288 L424 296 L432 296"/>
+          <path d="M488 296 L496 296 L496 288"/>
+          <!-- face -->
+          <g stroke="#C4B5FD">
+            <line x1="444" y1="240" x2="444" y2="248"/>
+            <line x1="476" y1="240" x2="476" y2="248"/>
+            <path d="M460 244 L460 258 L454 258"/>
+            <path d="M444 270 C452 278 468 278 476 270"/>
+          </g>
+          <!-- scan line -->
+          <line x1="428" y1="256" x2="492" y2="256" stroke="#DDD1FF" stroke-width="2" opacity="0.9">
+            <animate attributeName="y1" values="222;290;222" dur="1.6s" repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.2 1;0.4 0 0.2 1"/>
+            <animate attributeName="y2" values="222;290;222" dur="1.6s" repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.2 1;0.4 0 0.2 1"/>
+          </line>
+        </g>
+        <text x="460" y="356" text-anchor="middle" font-size="10" fill="#8AA0C2">Face ID · Touch ID gate</text>
+      </g>
+    </g>
+
+    <!-- PHASE 4 — signed in / multicast -->
+    <g opacity="0">
+      <animate attributeName="opacity" dur="16s" repeatCount="indefinite" keyTimes="0;0.75;0.77;0.99;1" values="0;0;1;1;0"/>
+      <g>
+        <animateTransform attributeName="transform" type="translate" dur="16s" repeatCount="indefinite"
+                          calcMode="spline" keyTimes="0;0.77;0.81;0.99;1"
+                          keySplines="0 0 1 1;0.34 0 0.2 1;0 0 1 1;0 0 1 1"
+                          values="0,12;0,12;0,0;0,0;0,12"/>
+        <!-- avatar -->
+        <circle cx="460" cy="206" r="24" fill="#0f3a2c" stroke="#3ECF8E" stroke-width="2"/>
+        <circle cx="460" cy="199" r="8" fill="#3ECF8E"/>
+        <path d="M446 224 C446 214 474 214 474 224 Z" fill="#3ECF8E"/>
+        <text x="460" y="256" text-anchor="middle" font-size="15" font-weight="700" fill="#3ECF8E">Signed in</text>
+        <!-- multicast dots -->
+        <g fill="#3ECF8E">
+          <circle cx="424" cy="284" r="5"><animate attributeName="opacity" dur="16s" repeatCount="indefinite" keyTimes="0;0.80;0.82;1" values="0.3;0.3;1;1"/></circle>
+          <circle cx="460" cy="284" r="5"><animate attributeName="opacity" dur="16s" repeatCount="indefinite" keyTimes="0;0.83;0.85;1" values="0.3;0.3;1;1"/></circle>
+          <circle cx="496" cy="284" r="5"><animate attributeName="opacity" dur="16s" repeatCount="indefinite" keyTimes="0;0.86;0.88;1" values="0.3;0.3;1;1"/></circle>
+        </g>
+        <text x="460" y="356" text-anchor="middle" font-size="10" fill="#8AA0C2">state fans out to observers</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- ===== feature legend (right) ===== -->
+  <g>
+    <g transform="translate(600,160)">
+      <circle r="5" fill="#5B8CFF"><animate attributeName="r" dur="16s" repeatCount="indefinite" keyTimes="0;0.22;0.25;1" values="7;7;5;5"/><animate attributeName="fill-opacity" dur="16s" repeatCount="indefinite" keyTimes="0;0.22;0.25;1" values="1;1;0.35;0.35"/></circle>
+      <text x="20" y="5" font-size="15.5" font-weight="600" fill="#EAF1FB">Pluggable providers</text>
+      <text x="20" y="24" font-size="11.5" fill="#8AA0C2">Firebase, Supabase, or your own backend</text>
+    </g>
+    <g transform="translate(600,216)">
+      <circle r="5" fill="#F0B429"><animate attributeName="r" dur="16s" repeatCount="indefinite" keyTimes="0;0.25;0.27;0.47;0.5;1" values="5;5;7;7;5;5"/><animate attributeName="fill-opacity" dur="16s" repeatCount="indefinite" keyTimes="0;0.25;0.27;0.47;0.5;1" values="0.35;0.35;1;1;0.35;0.35"/></circle>
+      <text x="20" y="5" font-size="15.5" font-weight="600" fill="#EAF1FB">Local validation</text>
+      <text x="20" y="24" font-size="11.5" fill="#8AA0C2">foreground expiry checks · 120s buffer</text>
+    </g>
+    <g transform="translate(600,272)">
+      <circle r="5" fill="#A78BFA"><animate attributeName="r" dur="16s" repeatCount="indefinite" keyTimes="0;0.5;0.52;0.72;0.75;1" values="5;5;7;7;5;5"/><animate attributeName="fill-opacity" dur="16s" repeatCount="indefinite" keyTimes="0;0.5;0.52;0.72;0.75;1" values="0.35;0.35;1;1;0.35;0.35"/></circle>
+      <text x="20" y="5" font-size="15.5" font-weight="600" fill="#EAF1FB">Biometric gating</text>
+      <text x="20" y="24" font-size="11.5" fill="#8AA0C2">Face ID / Touch ID on foreground</text>
+    </g>
+    <g transform="translate(600,328)">
+      <circle r="5" fill="#3ECF8E"><animate attributeName="r" dur="16s" repeatCount="indefinite" keyTimes="0;0.75;0.77;0.99;1" values="5;5;7;7;5"/><animate attributeName="fill-opacity" dur="16s" repeatCount="indefinite" keyTimes="0;0.75;0.77;0.99;1" values="0.35;0.35;1;1;0.35"/></circle>
+      <text x="20" y="5" font-size="15.5" font-weight="600" fill="#EAF1FB">Multicast observers</text>
+      <text x="20" y="24" font-size="11.5" fill="#8AA0C2">delegate + main-actor event proxy</text>
+    </g>
+  </g>
+
+  <!-- ===== ships-as ===== -->
+  <g font-size="11" text-anchor="middle">
+    <g transform="translate(600,402)"><rect width="152" height="22" rx="11" fill="#102647" stroke="#284d84"/><text x="76" y="15" fill="#B9C8DF">AuthSessionInterface</text></g>
+    <g transform="translate(762,402)"><rect width="94" height="22" rx="11" fill="#102647" stroke="#284d84"/><text x="47" y="15" fill="#B9C8DF">AuthSession</text></g>
+  </g>
+
+  <!-- ===== thread-safety pill ===== -->
+  <g transform="translate(44,318)">
+    <rect width="172" height="22" rx="11" fill="#102647" stroke="#284d84"/>
+    <circle cx="16" cy="11" r="4" fill="#3ECF8E"/>
+    <text x="30" y="15" font-size="10.5" fill="#B9C8DF">Sendable · lock-guarded</text>
+  </g>
+
+  <!-- ===== progress ===== -->
+  <rect x="44" y="446" width="812" height="4" rx="2" fill="#12294c"/>
+  <rect x="44" y="446" width="812" height="4" rx="2" fill="url(#brand)">
+    <animate attributeName="width" dur="16s" repeatCount="indefinite" values="0;812"/>
+  </rect>
+</svg>

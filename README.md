@@ -5,6 +5,11 @@
 [![SwiftPM](https://img.shields.io/badge/SwiftPM-compatible-brightgreen?logo=swift&logoColor=white)](https://www.swift.org/package-manager/)
 [![License: MPL 2.0](https://img.shields.io/badge/License-MPL%202.0-orange)](LICENSE)
 
+<p align="center">
+  <img src="Documentation/Media/auth-session-kit.svg" width="820"
+       alt="AuthSessionKit at a glance: pluggable providers (Firebase, Supabase, or your own) publish events into a thread-safe handle that fetches, validates, gates on Face ID / Touch ID, and fans state out to multicast observers.">
+</p>
+
 A Swift package that manages the **lifecycle of an authentication session** on Apple platforms — fetching, validating, refreshing, biometric gating, sign-in / sign-out, and broadcasting state changes to multiple observers.
 
 `AuthSessionKit` is intentionally split into two products so that feature modules can depend only on the public surface (protocols, enums, errors) without pulling in the implementation. This keeps build times low and makes the package easy to mock in tests.
